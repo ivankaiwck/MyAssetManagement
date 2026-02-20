@@ -8,6 +8,9 @@
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <!-- Lucide 圖標 -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -41,6 +44,25 @@
             displayCurrency: 'assetTracker.displayCurrency.v2',
             monthlySnapshots: 'assetTracker.monthlySnapshots.v2'
         };
+        const FIREBASE_CONFIG = window.__FIREBASE_CONFIG__ || {
+            apiKey: '',
+            authDomain: '',
+            projectId: '',
+            appId: ''
+        };
+        const CLOUD_COLLECTION = 'assetTrackerUsers';
+        const hasFirebaseConfig = ['apiKey', 'authDomain', 'projectId', 'appId'].every(key => Boolean((FIREBASE_CONFIG[key] || '').trim()));
+        const firebaseApp = (() => {
+            if (!window.firebase || !hasFirebaseConfig) return null;
+            try {
+                return firebase.apps?.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG);
+            } catch (error) {
+                return null;
+            }
+        })();
+        const firebaseAuth = firebaseApp ? firebase.auth() : null;
+        const firebaseDB = firebaseApp ? firebase.firestore() : null;
+        const isCloudEnabled = Boolean(firebaseAuth && firebaseDB);
 
         const CATEGORIES = {
             LIQUID: { label: '流動資金', color: 'text-emerald-500', bgColor: 'bg-emerald-50', icon: 'wallet', subtypes: ['現金', '電子錢包', '金融卡', '其他'] },
@@ -398,6 +420,10 @@
             const [assets, setAssets] = useState(() => parseStorage(STORAGE_KEYS.assets, seedAssets));
             const [displayCurrency, setDisplayCurrency] = useState(() => parseStorage(STORAGE_KEYS.displayCurrency, 'HKD'));
             const [monthlySnapshots, setMonthlySnapshots] = useState(() => parseStorage(STORAGE_KEYS.monthlySnapshots, {}));
+            const [authUser, setAuthUser] = useState(null);
+            const [isAuthLoading, setIsAuthLoading] = useState(isCloudEnabled);
+            const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+            const [cloudStatus, setCloudStatus] = useState(isCloudEnabled ? '尚未登入 Google，資料僅存在此裝置' : '未設定 Firebase，資料僅存在此裝置');
 
             const [isModalOpen, setIsModalOpen] = useState(false);
             const [editingId, setEditingId] = useState(null);
@@ -456,6 +482,8 @@
                 fixedNote: ''
             });
             const importInputRef = useRef(null);
+            const cloudHydratedRef = useRef(false);
+            const cloudSaveTimerRef = useRef(null);
 
             const isLiquidForm = formData.category === 'LIQUID';
             const isInvestForm = formData.category === 'INVEST';
@@ -483,6 +511,10 @@
 
             const assetsRef = useRef(assets);
             useEffect(() => { assetsRef.current = assets; }, [assets]);
+            const displayCurrencyRef = useRef(displayCurrency);
+            useEffect(() => { displayCurrencyRef.current = displayCurrency; }, [displayCurrency]);
+            const monthlySnapshotsRef = useRef(monthlySnapshots);
+            useEffect(() => { monthlySnapshotsRef.current = monthlySnapshots; }, [monthlySnapshots]);
 
             useEffect(() => {
                 localStorage.setItem(STORAGE_KEYS.assets, JSON.stringify(assets));
@@ -495,6 +527,12 @@
             useEffect(() => {
                 if (window.lucide) window.lucide.createIcons();
             }, [assets, isModalOpen, selectedCategories, sortMode, isUpdatingPrice]);
+
+            useEffect(() => {
+                return () => {
+                    if (cloudSaveTimerRef.current) clearTimeout(cloudSaveTimerRef.current);
+                };
+            }, []);
 
             const totals = useMemo(() => {
                 let assetsHKD = 0;
@@ -918,6 +956,122 @@
                     Number.isFinite(costBasis) &&
                     Number.isFinite(currentPrice)
                 );
+            };
+
+            useEffect(() => {
+                if (!isCloudEnabled) {
+                    setIsAuthLoading(false);
+                    return;
+                }
+
+                const unsubscribe = firebaseAuth.onAuthStateChanged(async (user) => {
+                    setAuthUser(user || null);
+                    setIsAuthLoading(false);
+
+                    if (!user) {
+                        cloudHydratedRef.current = false;
+                        setCloudStatus('已登出 Google，資料僅存在此裝置');
+                        return;
+                    }
+
+                    setIsCloudSyncing(true);
+                    setCloudStatus('正在從雲端同步資料...');
+
+                    try {
+                        const docRef = firebaseDB.collection(CLOUD_COLLECTION).doc(user.uid);
+                        const snapshot = await docRef.get();
+                        const cloudData = snapshot.exists ? (snapshot.data() || {}) : {};
+
+                        if (Array.isArray(cloudData.assets) && cloudData.assets.every(isValidAssetRecord)) {
+                            const nextAssets = cloudData.assets.map(item => ({
+                                ...item,
+                                quantity: Number(item.quantity),
+                                costBasis: Number(item.costBasis),
+                                currentPrice: Number(item.currentPrice),
+                                symbol: (item.symbol || '').toString().toUpperCase().trim()
+                            }));
+                            const nextDisplayCurrency = typeof cloudData.displayCurrency === 'string' && CURRENCIES.includes(cloudData.displayCurrency)
+                                ? cloudData.displayCurrency
+                                : 'HKD';
+                            const nextMonthlySnapshots = cloudData.monthlySnapshots && typeof cloudData.monthlySnapshots === 'object' && !Array.isArray(cloudData.monthlySnapshots)
+                                ? cloudData.monthlySnapshots
+                                : {};
+
+                            setAssets(nextAssets);
+                            setDisplayCurrency(nextDisplayCurrency);
+                            setMonthlySnapshots(nextMonthlySnapshots);
+                            localStorage.setItem(STORAGE_KEYS.assets, JSON.stringify(nextAssets));
+                            localStorage.setItem(STORAGE_KEYS.displayCurrency, JSON.stringify(nextDisplayCurrency));
+                            localStorage.setItem(STORAGE_KEYS.monthlySnapshots, JSON.stringify(nextMonthlySnapshots));
+                            setCloudStatus(`已同步雲端資料（${user.email || 'Google 帳號'}）`);
+                        } else {
+                            await docRef.set({
+                                assets: assetsRef.current,
+                                displayCurrency: displayCurrencyRef.current,
+                                monthlySnapshots: monthlySnapshotsRef.current,
+                                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                                email: user.email || ''
+                            }, { merge: true });
+                            setCloudStatus(`已建立雲端存檔（${user.email || 'Google 帳號'}）`);
+                        }
+                    } catch (error) {
+                        setCloudStatus('雲端同步失敗，已改用本機資料');
+                    } finally {
+                        cloudHydratedRef.current = true;
+                        setIsCloudSyncing(false);
+                    }
+                });
+
+                return () => unsubscribe();
+            }, []);
+
+            useEffect(() => {
+                if (!isCloudEnabled || !authUser || isAuthLoading || !cloudHydratedRef.current) return;
+
+                if (cloudSaveTimerRef.current) clearTimeout(cloudSaveTimerRef.current);
+                cloudSaveTimerRef.current = setTimeout(async () => {
+                    setIsCloudSyncing(true);
+                    try {
+                        await firebaseDB.collection(CLOUD_COLLECTION).doc(authUser.uid).set({
+                            assets,
+                            displayCurrency,
+                            monthlySnapshots,
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                            email: authUser.email || ''
+                        }, { merge: true });
+                        setCloudStatus(`雲端已同步：${new Date().toLocaleTimeString()}`);
+                    } catch (error) {
+                        setCloudStatus('雲端儲存失敗，資料仍保留在本機');
+                    } finally {
+                        setIsCloudSyncing(false);
+                    }
+                }, 800);
+
+                return () => {
+                    if (cloudSaveTimerRef.current) clearTimeout(cloudSaveTimerRef.current);
+                };
+            }, [assets, displayCurrency, monthlySnapshots, authUser, isAuthLoading]);
+
+            const handleGoogleLogin = async () => {
+                if (!isCloudEnabled) {
+                    setCloudStatus('尚未設定 Firebase，請先在 index.html 填入 Firebase 設定');
+                    return;
+                }
+                try {
+                    const provider = new firebase.auth.GoogleAuthProvider();
+                    await firebaseAuth.signInWithPopup(provider);
+                } catch (error) {
+                    setCloudStatus('Google 登入失敗，請稍後再試');
+                }
+            };
+
+            const handleGoogleLogout = async () => {
+                if (!isCloudEnabled) return;
+                try {
+                    await firebaseAuth.signOut();
+                } catch (error) {
+                    setCloudStatus('登出失敗，請稍後再試');
+                }
             };
 
             const handleExportData = () => {
@@ -1344,6 +1498,21 @@
                                     </button>
                                     {showSettings && (
                                         <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-100 rounded-xl shadow-lg p-3 space-y-2 z-20">
+                                            <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">雲端帳號</div>
+                                            <div className="text-xs font-bold text-slate-600 bg-slate-50 rounded-lg px-2 py-1">
+                                                {authUser ? (authUser.email || '已登入 Google') : '未登入 Google'}
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    if (authUser) handleGoogleLogout();
+                                                    else handleGoogleLogin();
+                                                    setShowSettings(false);
+                                                }}
+                                                disabled={isAuthLoading || isCloudSyncing}
+                                                className="w-full bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-slate-800 transition-all disabled:opacity-60"
+                                            >
+                                                {isAuthLoading ? '帳號讀取中...' : authUser ? 'Google 登出' : 'Google 登入'}
+                                            </button>
                                             <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">顯示幣種</div>
                                             <select
                                                 value={displayCurrency}
@@ -1388,6 +1557,9 @@
                                 <button onClick={openImportPicker} className="bg-amber-500 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-amber-400 transition-all shadow-md">
                                     匯入資料
                                 </button>
+                                <button onClick={authUser ? handleGoogleLogout : handleGoogleLogin} disabled={isAuthLoading || isCloudSyncing} className="bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-slate-800 transition-all shadow-md disabled:opacity-60">
+                                    {isAuthLoading ? '帳號讀取中...' : authUser ? 'Google 登出' : 'Google 登入'}
+                                </button>
                                 <button onClick={() => updateMarketPrices(true)} disabled={isUpdatingPrice} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-500 transition-all shadow-md disabled:opacity-60">
                                     {isUpdatingPrice ? '更新中...' : '更新股價/幣價'}
                                 </button>
@@ -1401,6 +1573,7 @@
                     <div className="mb-8 text-xs text-slate-500 font-bold flex flex-wrap gap-x-4 gap-y-1">
                         <span>{priceStatus || '行情將每 5 分鐘自動更新一次'}</span>
                         <span>{lastPriceUpdate ? `最後更新：${lastPriceUpdate.toLocaleString()}` : '尚未更新行情'}</span>
+                        <span>{isCloudSyncing ? '雲端同步中...' : cloudStatus}</span>
                     </div>
 
                     <section className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-100 shadow-sm mb-8">
