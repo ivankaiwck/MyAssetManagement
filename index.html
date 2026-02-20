@@ -968,6 +968,17 @@
                     return;
                 }
 
+                firebaseAuth.getRedirectResult()
+                    .then(result => {
+                        if (result?.user) {
+                            setCloudStatus(`已登入 Google（${result.user.email || 'Google 帳號'}）`);
+                        }
+                    })
+                    .catch(error => {
+                        const code = error?.code || 'unknown';
+                        setCloudStatus(`導頁登入失敗（${code}）`);
+                    });
+
                 const unsubscribe = firebaseAuth.onAuthStateChanged(async (user) => {
                     setAuthUser(user || null);
                     setIsAuthLoading(false);
