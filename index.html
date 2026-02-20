@@ -101,14 +101,21 @@
         };
 
         const getNetWorthTier = (netWorthHKD) => {
-            const value = Number(netWorthHKD) || 0;
-            if (value < 0) return { emoji: '⚠️', label: '負資產' };
-            if (value < 780000) return { emoji: '🪴', label: '基層 / 下層階層' };
-            if (value < 1000000) return { emoji: '🧭', label: '大眾富裕 / 上層工人階級' };
-            if (value < 5000000) return { emoji: '🏡', label: '中產階級' };
-            if (value < 10000000) return { emoji: '💠', label: '富裕階層 / 中上階層' };
-            if (value < 100000000) return { emoji: '💎', label: '高淨值富豪' };
-            return { emoji: '👑', label: '超級富豪階層' };
+              const value = Number(netWorthHKD) || 0;
+              if (value < 0) return { emoji: '⚠️', label: '負資產' };
+              if (value < 100000) return { emoji: '🌱', label: '基層 / 下層階層' };
+              if (value < 300000) return { emoji: '🍀', label: '初入社會 / 剛起步' };
+              if (value < 780000) return { emoji: '🪴', label: '小康 / 穩定發展' };
+              if (value < 1000000) return { emoji: '🧭', label: '大眾富裕 / 上層工人階級' };
+              if (value < 2000000) return { emoji: '🚗', label: '新晉中產' };
+              if (value < 5000000) return { emoji: '🏡', label: '中產階級' };
+              if (value < 8000000) return { emoji: '🏙️', label: '中上階層' };
+              if (value < 10000000) return { emoji: '💠', label: '富裕階層 / 中上階層' };
+              if (value < 20000000) return { emoji: '💼', label: '準高淨值人士' };
+              if (value < 50000000) return { emoji: '💎', label: '高淨值富豪' };
+              if (value < 100000000) return { emoji: '🏰', label: '超高淨值人士' };
+              if (value < 500000000) return { emoji: '👑', label: '超級富豪階層' };
+              return { emoji: '🌏', label: '頂級富豪 / 世界級' };
         };
 
         const calculateMortgageMetrics = ({ propertyPrice, ltvRatio, annualInterestRate, mortgageYears, paidPeriods }) => {
