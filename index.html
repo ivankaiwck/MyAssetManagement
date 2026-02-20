@@ -968,6 +968,11 @@
                     return;
                 }
 
+                firebaseAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+                    .catch(() => {
+                        setCloudStatus('無法啟用登入持久化，請允許第三方 Cookie 或關閉隱私阻擋');
+                    });
+
                 firebaseAuth.getRedirectResult()
                     .then(result => {
                         if (result?.user) {
