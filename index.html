@@ -1063,6 +1063,12 @@
                 }
                 try {
                     const provider = new firebase.auth.GoogleAuthProvider();
+                    const isGithubPagesHost = window.location.hostname.endsWith('github.io');
+                    if (isGithubPagesHost) {
+                        setCloudStatus('GitHub Pages 環境，改用導頁登入中...');
+                        await firebaseAuth.signInWithRedirect(provider);
+                        return;
+                    }
                     await firebaseAuth.signInWithPopup(provider);
                 } catch (error) {
                     const code = error?.code || '';
@@ -1080,7 +1086,7 @@
                     }
 
                     if (code === 'auth/unauthorized-domain') {
-                        setCloudStatus('網域未授權：請到 Firebase Auth 加入 localhost 與 127.0.0.1');
+                        setCloudStatus('網域未授權：請到 Firebase Auth 加入 localhost、127.0.0.1、ivankaiwck.github.io');
                         return;
                     }
 
