@@ -2088,27 +2088,73 @@
                                 <select value={displayCurrency} onChange={e => setDisplayCurrency(e.target.value)} className="bg-white border border-slate-200 rounded-lg px-3 py-2 font-bold text-sm shadow-sm outline-none">
                                     {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
-                                <button onClick={resetToSeed} className="bg-rose-500 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-rose-400 transition-all shadow-md">
-                                    重設資料
-                                </button>
-                                <button onClick={handleExportData} className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-emerald-500 transition-all shadow-md">
-                                    匯出資料
-                                </button>
-                                <button onClick={openImportPicker} className="bg-amber-500 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-amber-400 transition-all shadow-md">
-                                    匯入資料
-                                </button>
-                                <button onClick={authUser ? handleGoogleLogout : handleGoogleLogin} disabled={isAuthLoading || isCloudSyncing} className="bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-slate-800 transition-all shadow-md disabled:opacity-60">
-                                    {isAuthLoading ? '帳號讀取中...' : authUser ? 'Google 登出' : 'Google 登入'}
-                                </button>
-                                <button onClick={() => updateMarketPrices(true)} disabled={isUpdatingPrice} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-500 transition-all shadow-md disabled:opacity-60">
-                                    {isUpdatingPrice ? '更新中...' : '更新股價/幣價'}
-                                </button>
-                                <button onClick={() => refreshCurrencyRates(true)} disabled={isUpdatingRates} className="bg-cyan-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-cyan-500 transition-all shadow-md disabled:opacity-60">
-                                    {isUpdatingRates ? '更新中...' : '更新匯率'}
-                                </button>
-                                <button onClick={handleShareApp} disabled={isGeneratingPdf} className="bg-violet-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-violet-500 transition-all shadow-md flex items-center gap-2 disabled:opacity-60">
-                                    <i data-lucide="share-2" className="w-4 h-4"></i> {isGeneratingPdf ? 'PDF 產生中...' : '分享資產（PDF）'}
-                                </button>
+                                <div className="relative">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowSettings(prev => !prev)}
+                                        className="bg-white border border-slate-200 rounded-lg px-3 py-2 font-black text-sm shadow-sm"
+                                    >
+                                        <i data-lucide="settings" className="w-4 h-4"></i>
+                                    </button>
+                                    {showSettings && (
+                                        <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-100 rounded-xl shadow-lg p-3 space-y-2 z-20">
+                                            <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">雲端帳號</div>
+                                            <div className="text-xs font-bold text-slate-600 bg-slate-50 rounded-lg px-2 py-1">
+                                                {authUser ? (authUser.email || '已登入 Google') : '未登入 Google'}
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    if (authUser) handleGoogleLogout();
+                                                    else handleGoogleLogin();
+                                                    setShowSettings(false);
+                                                }}
+                                                disabled={isAuthLoading || isCloudSyncing}
+                                                className="w-full bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-slate-800 transition-all disabled:opacity-60"
+                                            >
+                                                {isAuthLoading ? '帳號讀取中...' : authUser ? 'Google 登出' : 'Google 登入'}
+                                            </button>
+                                            <button
+                                                onClick={() => { handleExportData(); setShowSettings(false); }}
+                                                className="w-full bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-emerald-500 transition-all"
+                                            >
+                                                匯出資料
+                                            </button>
+                                            <button
+                                                onClick={() => { openImportPicker(); setShowSettings(false); }}
+                                                className="w-full bg-amber-500 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-amber-400 transition-all"
+                                            >
+                                                匯入資料
+                                            </button>
+                                            <button
+                                                onClick={() => { updateMarketPrices(true); setShowSettings(false); }}
+                                                disabled={isUpdatingPrice}
+                                                className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-500 transition-all disabled:opacity-60"
+                                            >
+                                                {isUpdatingPrice ? '更新中...' : '更新股價/幣價'}
+                                            </button>
+                                            <button
+                                                onClick={() => { refreshCurrencyRates(true); setShowSettings(false); }}
+                                                disabled={isUpdatingRates}
+                                                className="w-full bg-cyan-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-cyan-500 transition-all disabled:opacity-60"
+                                            >
+                                                {isUpdatingRates ? '更新中...' : '更新匯率'}
+                                            </button>
+                                            <button
+                                                onClick={() => { handleShareApp(); setShowSettings(false); }}
+                                                disabled={isGeneratingPdf}
+                                                className="w-full bg-violet-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-violet-500 transition-all disabled:opacity-60"
+                                            >
+                                                {isGeneratingPdf ? 'PDF 產生中...' : '分享資產（PDF）'}
+                                            </button>
+                                            <button
+                                                onClick={() => { resetToSeed(); setShowSettings(false); }}
+                                                className="w-full bg-rose-500 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-rose-400 transition-all"
+                                            >
+                                                重設資料
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                                 <button onClick={() => { setEditingId(null); setIsModalOpen(true); }} className="bg-slate-900 text-white px-5 py-2 rounded-lg font-bold text-sm hover:bg-slate-800 transition-all shadow-md flex items-center gap-2">
                                     <i data-lucide="plus-circle" className="w-4 h-4"></i> 新增資產
                                 </button>
