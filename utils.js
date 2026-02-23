@@ -429,6 +429,17 @@
                     ? rawCategory
                     : getDefaultCashflowCategory(type);
 
+                const oneTimeDates = scheduleType === 'ONE_TIME'
+                    ? Array.from(new Set([
+                        ...(Array.isArray(item.oneTimeDates) ? item.oneTimeDates : []),
+                        startDate
+                    ].filter(dateKey => Boolean(parseDateKey(dateKey))))).sort()
+                    : [];
+
+                const normalizedStartDate = scheduleType === 'ONE_TIME' && oneTimeDates.length
+                    ? oneTimeDates[0]
+                    : startDate;
+
                 return {
                     id: typeof item.id === 'string' && item.id ? item.id : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
                     title: typeof item.title === 'string' && item.title.trim() ? item.title.trim() : '未命名現金流',
@@ -438,7 +449,8 @@
                     type,
                     amount,
                     currency,
-                    startDate,
+                    startDate: normalizedStartDate,
+                    oneTimeDates,
                     endDate: scheduleType === 'ONE_TIME' ? '' : endDate,
                     scheduleType,
                     frequency,
@@ -459,7 +471,10 @@
 
         const scheduleType = entry.scheduleType || (entry.frequency === 'ONE_TIME' ? 'ONE_TIME' : 'RECURRING');
         if (scheduleType === 'ONE_TIME') {
-            return toDateKey(date) === entry.startDate;
+            const oneTimeDates = Array.isArray(entry.oneTimeDates) && entry.oneTimeDates.length
+                ? entry.oneTimeDates
+                : [entry.startDate];
+            return oneTimeDates.includes(toDateKey(date));
         }
 
         const end = parseDateKey(entry.endDate);

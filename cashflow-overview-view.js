@@ -18,6 +18,7 @@
     }) => {
         const mobileListRef = React.useRef(null);
         const mobileTodayCardRef = React.useRef(null);
+        const [selectedDayDetail, setSelectedDayDetail] = React.useState(null);
 
         React.useEffect(() => {
             if (cashflowView !== 'MONTH') return;
@@ -30,20 +31,26 @@
             listEl.scrollTo({ top: scrollTop, behavior: 'smooth' });
         }, [cashflowView, cashflowMonthData.dayRows]);
 
+        React.useEffect(() => {
+            if (cashflowView !== 'MONTH') {
+                setSelectedDayDetail(null);
+            }
+        }, [cashflowView]);
+
         return (
         <>
             <div className="order-1 grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="theme-income-card rounded-xl p-4">
                     <div className="text-[10px] theme-text-sub font-black uppercase tracking-widest mb-1">本月收入</div>
-                    <div className="text-xl font-black theme-text-main">{formatAmount(cashflowMonthData.monthIncomeDisplay)} {displayCurrency}</div>
+                    <div className="text-xl font-black text-emerald-600">{formatAmount(cashflowMonthData.monthIncomeDisplay)} {displayCurrency}</div>
                 </div>
                 <div className="theme-expense-card rounded-xl p-4">
                     <div className="text-[10px] theme-text-sub font-black uppercase tracking-widest mb-1">本月支出</div>
-                    <div className="text-xl font-black theme-text-main">{formatAmount(cashflowMonthData.monthExpenseDisplay)} {displayCurrency}</div>
+                    <div className="text-xl font-black text-rose-600">{formatAmount(cashflowMonthData.monthExpenseDisplay)} {displayCurrency}</div>
                 </div>
                 <div className="theme-netflow-card rounded-xl p-4">
                     <div className="text-[10px] theme-text-sub font-black uppercase tracking-widest mb-1">本月淨流</div>
-                    <div className={`text-xl font-black ${cashflowMonthData.monthNetDisplay >= 0 ? 'theme-text-main' : 'text-rose-500'}`}>
+                    <div className={`text-xl font-black ${cashflowMonthData.monthNetDisplay >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
                         {cashflowMonthData.monthNetDisplay >= 0 ? '+' : ''}{formatAmount(cashflowMonthData.monthNetDisplay)} {displayCurrency}
                     </div>
                 </div>
@@ -75,7 +82,16 @@
                             <div
                                 key={day.dateKey}
                                 ref={day.dateKey === TODAY_DATE_KEY ? mobileTodayCardRef : null}
-                                className={`min-h-[96px] rounded-xl border px-3 py-2.5 flex flex-col gap-1.5 ${day.dateKey === TODAY_DATE_KEY ? 'bg-indigo-50/80 border-indigo-300 ring-1 ring-indigo-200 shadow-sm shadow-indigo-100/70' : day.entries.length > 0 ? 'bg-white border-indigo-200 ring-1 ring-indigo-100' : 'bg-white border-slate-100'}`}
+                                className={`min-h-[96px] rounded-xl border px-3 py-2.5 flex flex-col gap-1.5 cursor-pointer transition-colors ${day.dateKey === TODAY_DATE_KEY ? 'bg-indigo-50/80 border-indigo-300 ring-1 ring-indigo-200 shadow-sm shadow-indigo-100/70 hover:bg-indigo-50' : day.entries.length > 0 ? 'bg-white border-indigo-200 ring-1 ring-indigo-100 hover:bg-slate-50' : 'bg-white border-slate-100 hover:bg-slate-50'}`}
+                                onClick={() => setSelectedDayDetail(day)}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter' || event.key === ' ') {
+                                        event.preventDefault();
+                                        setSelectedDayDetail(day);
+                                    }
+                                }}
                             >
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-1.5">
@@ -103,7 +119,13 @@
                                         ))
                                     )}
                                     {day.entries.length > 3 && (
-                                        <div className="text-[10px] text-slate-400 font-black">+{day.entries.length - 3} 筆</div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedDayDetail(day)}
+                                            className="text-[10px] text-indigo-500 font-black hover:text-indigo-600"
+                                        >
+                                            查看全部（+{day.entries.length - 3}）
+                                        </button>
                                     )}
                                 </div>
                             </div>
@@ -124,7 +146,16 @@
                             {cashflowMonthData.dayRows.map(day => (
                                 <div
                                     key={day.dateKey}
-                                    className={`min-h-24 rounded-xl border p-2 flex flex-col gap-1 ${day.dateKey === TODAY_DATE_KEY ? 'bg-indigo-50/70 border-indigo-300 ring-1 ring-indigo-200 shadow-sm shadow-indigo-100/70' : 'bg-white border-slate-100'}`}
+                                    className={`min-h-24 rounded-xl border p-2 flex flex-col gap-1 cursor-pointer transition-colors ${day.dateKey === TODAY_DATE_KEY ? 'bg-indigo-50/70 border-indigo-300 ring-1 ring-indigo-200 shadow-sm shadow-indigo-100/70 hover:bg-indigo-50' : 'bg-white border-slate-100 hover:bg-slate-50'}`}
+                                    onClick={() => setSelectedDayDetail(day)}
+                                    role="button"
+                                    tabIndex={0}
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter' || event.key === ' ') {
+                                            event.preventDefault();
+                                            setSelectedDayDetail(day);
+                                        }
+                                    }}
                                 >
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-1">
@@ -152,7 +183,13 @@
                                             </div>
                                         ))}
                                         {day.entries.length > 2 && (
-                                            <div className="text-[10px] text-slate-400 font-black">+{day.entries.length - 2} 筆</div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedDayDetail(day)}
+                                                className="text-[10px] text-indigo-500 font-black hover:text-indigo-600"
+                                            >
+                                                查看全部（+{day.entries.length - 2}）
+                                            </button>
                                         )}
                                     </div>
                                 </div>
@@ -165,15 +202,15 @@
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="theme-income-card rounded-xl p-4">
                             <div className="text-[10px] theme-text-sub font-black uppercase tracking-widest mb-1">{cashflowYearData.year} 年收入</div>
-                            <div className="text-xl font-black theme-text-main">{formatAmount(cashflowYearData.yearIncomeDisplay)} {displayCurrency}</div>
+                            <div className="text-xl font-black text-emerald-600">{formatAmount(cashflowYearData.yearIncomeDisplay)} {displayCurrency}</div>
                         </div>
                         <div className="theme-expense-card rounded-xl p-4">
                             <div className="text-[10px] theme-text-sub font-black uppercase tracking-widest mb-1">{cashflowYearData.year} 年支出</div>
-                            <div className="text-xl font-black theme-text-main">{formatAmount(cashflowYearData.yearExpenseDisplay)} {displayCurrency}</div>
+                            <div className="text-xl font-black text-rose-600">{formatAmount(cashflowYearData.yearExpenseDisplay)} {displayCurrency}</div>
                         </div>
                         <div className="theme-netflow-card rounded-xl p-4">
                             <div className="text-[10px] theme-text-sub font-black uppercase tracking-widest mb-1">{cashflowYearData.year} 年淨流</div>
-                            <div className={`text-xl font-black ${cashflowYearData.yearNetDisplay >= 0 ? 'theme-text-main' : 'text-rose-500'}`}>
+                            <div className={`text-xl font-black ${cashflowYearData.yearNetDisplay >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
                                 {cashflowYearData.yearNetDisplay >= 0 ? '+' : ''}{formatAmount(cashflowYearData.yearNetDisplay)} {displayCurrency}
                             </div>
                         </div>
@@ -184,11 +221,54 @@
                                 <div className="text-sm font-black text-slate-700 mb-2">{monthItem.label}</div>
                                 <div className="text-xs font-bold text-emerald-600">收入 +{formatAmount(monthItem.incomeDisplay)} {displayCurrency}</div>
                                 <div className="text-xs font-bold text-rose-600">支出 -{formatAmount(monthItem.expenseDisplay)} {displayCurrency}</div>
-                                <div className={`text-xs font-black mt-1 ${monthItem.netDisplay >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
+                                <div className={`text-xs font-black mt-1 ${monthItem.netDisplay >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                     淨流 {monthItem.netDisplay >= 0 ? '+' : ''}{formatAmount(monthItem.netDisplay)} {displayCurrency}
                                 </div>
                             </div>
                         ))}
+                    </div>
+                </div>
+            )}
+
+            {selectedDayDetail && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay" onClick={() => setSelectedDayDetail(null)}>
+                    <div className="w-full max-w-md rounded-2xl theme-surface shadow-2xl p-4" onClick={event => event.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-3">
+                            <div>
+                                <div className="text-sm font-black theme-text-main">{selectedDayDetail.dateKey} 流水明細</div>
+                                <div className="text-[11px] font-black theme-text-sub mt-0.5">
+                                    收 +{formatAmount(selectedDayDetail.incomeDisplay)} · 支 -{formatAmount(selectedDayDetail.expenseDisplay)} · 淨 {selectedDayDetail.netDisplay >= 0 ? '+' : ''}{formatAmount(selectedDayDetail.netDisplay)} {displayCurrency}
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedDayDetail(null)}
+                                className="px-2 py-1 rounded-lg theme-tab-inactive text-xs font-black"
+                            >
+                                關閉
+                            </button>
+                        </div>
+                        <div className="max-h-[60vh] overflow-y-auto custom-scrollbar pr-1 space-y-1.5">
+                            {selectedDayDetail.entries.length === 0 ? (
+                                <div className="text-xs theme-text-sub font-bold text-center py-3">當日無流水</div>
+                            ) : (
+                                selectedDayDetail.entries.map(entry => (
+                                    <div key={entry.id} className="rounded-lg border border-slate-100 p-2.5 flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <div className={`text-xs font-black truncate ${entry.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                {entry.type === 'INCOME' ? '+' : '-'} {entry.title}
+                                            </div>
+                                            <div className="text-[10px] text-slate-400 font-bold truncate mt-0.5">
+                                                {entry.category}{entry.account ? ` · ${entry.account}` : ''}
+                                            </div>
+                                        </div>
+                                        <div className={`text-xs font-black shrink-0 ${entry.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                            {entry.type === 'INCOME' ? '+' : '-'}{formatAmount(entry.amountDisplay)} {displayCurrency}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
                     </div>
                 </div>
             )}

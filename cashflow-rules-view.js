@@ -15,7 +15,6 @@
         CASHFLOW_TYPES,
         CASHFLOW_FREQUENCIES,
         liquidAssetLabelById,
-        cashflowTriggerInfoById,
         formatAmount,
         fromHKD,
         toHKD,
@@ -95,8 +94,10 @@
                                 </div>
 
                                 <div className="text-[10px] text-slate-400 font-black flex flex-wrap gap-x-3 gap-y-1">
-                                    <span>下次：{cashflowTriggerInfoById[item.id]?.nextDateKey || '--'}</span>
                                     {item.account ? <span>帳戶：{item.account}</span> : null}
+                                    {item.scheduleType === 'ONE_TIME' && Array.isArray(item.oneTimeDates) && item.oneTimeDates.length > 0
+                                        ? <span>日期：{item.oneTimeDates.slice(0, 3).join('、')}{item.oneTimeDates.length > 3 ? ` 等 ${item.oneTimeDates.length} 日` : ''}</span>
+                                        : null}
                                 </div>
 
                                 {item.targetLiquidAssetId && (
@@ -132,7 +133,10 @@
                                     <div className="text-[10px] text-slate-400 font-bold mt-1">
                                         {item.account ? `帳戶：${item.account} · ` : ''}
                                         {item.category} · {(item.scheduleType === 'ONE_TIME' ? '單次性' : '固定')} · {(item.frequency === 'ONE_TIME' ? '單次' : (CASHFLOW_FREQUENCIES.find(entry => entry.value === item.frequency)?.label || item.frequency))}
-                                        {item.frequency === 'MONTHLY' ? `（每月 ${item.payday || item.monthday || '--'} 號）` : ''} · {item.startDate}{item.endDate ? ` ~ ${item.endDate}` : ''}
+                                        {item.frequency === 'MONTHLY' ? `（每月 ${item.payday || item.monthday || '--'} 號）` : ''}
+                                        {item.scheduleType === 'ONE_TIME'
+                                            ? ` · 日期：${(Array.isArray(item.oneTimeDates) && item.oneTimeDates.length > 0 ? item.oneTimeDates.slice(0, 4).join('、') : item.startDate || '--')}${Array.isArray(item.oneTimeDates) && item.oneTimeDates.length > 4 ? ` 等 ${item.oneTimeDates.length} 日` : ''}`
+                                            : ` · ${item.startDate}${item.endDate ? ` ~ ${item.endDate}` : ''}`}
                                     </div>
                                     {item.targetLiquidAssetId && (
                                         <div className="text-[10px] text-indigo-500 font-black mt-0.5">
@@ -140,10 +144,6 @@
                                         </div>
                                     )}
                                     {item.note && <div className="text-[10px] text-slate-400 font-bold mt-0.5">{item.note}</div>}
-                                    <div className="text-[10px] text-slate-400 font-black mt-1 flex flex-wrap gap-x-3 gap-y-1">
-                                        <span>最後觸發：{cashflowTriggerInfoById[item.id]?.lastDateKey || '--'}</span>
-                                        <span>下次觸發：{cashflowTriggerInfoById[item.id]?.nextDateKey || '--'}</span>
-                                    </div>
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
                                     <div className={`text-sm font-black ${item.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}`}>

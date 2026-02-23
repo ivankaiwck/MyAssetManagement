@@ -17,6 +17,16 @@
         const endDate = cashflowForm.endDate;
         const scheduleType = cashflowForm.scheduleType || 'RECURRING';
         const frequency = scheduleType === 'ONE_TIME' ? 'ONE_TIME' : cashflowForm.frequency;
+        const normalizeDateList = (rawList) => {
+            const unique = new Set();
+            (Array.isArray(rawList) ? rawList : []).forEach(item => {
+                const raw = typeof item === 'string' ? item : '';
+                const parsed = parseDateKey(raw);
+                if (!parsed) return;
+                unique.add(raw);
+            });
+            return Array.from(unique).sort();
+        };
 
         if (!title) {
             return { ok: false, error: '請輸入現金流名稱' };
@@ -25,7 +35,16 @@
             return { ok: false, error: '請輸入有效金額' };
         }
 
-        const parsedStart = parseDateKey(startDate);
+        const oneTimeDates = scheduleType === 'ONE_TIME'
+            ? normalizeDateList(cashflowForm.oneTimeDates || [])
+            : [];
+
+        if (scheduleType === 'ONE_TIME' && oneTimeDates.length === 0) {
+            return { ok: false, error: '請至少加入一個單次日期' };
+        }
+
+        const resolvedStartDate = scheduleType === 'ONE_TIME' ? oneTimeDates[0] : startDate;
+        const parsedStart = parseDateKey(resolvedStartDate);
         if (!parsedStart) {
             return { ok: false, error: '請輸入有效的開始日期' };
         }
@@ -61,7 +80,8 @@
             currency: cashflowForm.currency,
             scheduleType,
             frequency,
-            startDate,
+            startDate: resolvedStartDate,
+            oneTimeDates,
             endDate: scheduleType === 'ONE_TIME' ? '' : (endDate || ''),
             weekday,
             monthday,
@@ -95,7 +115,7 @@
             const direction = nextEntry.type === 'INCOME' ? '入帳' : '扣款';
             const todayDate = new Date();
             const willApplyToday = isEntryOnDate(nextEntry, todayDate);
-            const whenText = willApplyToday ? '今天' : '下次觸發時';
+            const whenText = willApplyToday ? '今天' : (nextEntry.scheduleType === 'ONE_TIME' ? '所選日期' : '符合規則日期');
             return `規則已新增（預覽）：${whenText}將${direction}至「${selectedLiquidAsset.label}」${formatAmount(amountInTargetCurrency)} ${selectedLiquidAsset.currency}`;
         }
 
@@ -109,8 +129,23 @@
     const buildCashflowFormFromEntry = ({
         entry,
         getDefaultCashflowCategory,
-        toDateKey
+        toDateKey,
+        parseDateKey
     }) => ({
+        oneTimeDates: (() => {
+            const unique = new Set();
+            const push = (value) => {
+                const raw = typeof value === 'string' ? value : '';
+                const parsed = parseDateKey(raw);
+                if (!parsed) return;
+                unique.add(raw);
+            };
+            (entry?.oneTimeDates || []).forEach(push);
+            if ((entry?.scheduleType || (entry?.frequency === 'ONE_TIME' ? 'ONE_TIME' : 'RECURRING')) === 'ONE_TIME') {
+                push(entry?.startDate);
+            }
+            return Array.from(unique).sort();
+        })(),
         title: entry?.title || '',
         account: entry?.account || '',
         category: entry?.category || getDefaultCashflowCategory(entry?.type || 'EXPENSE'),

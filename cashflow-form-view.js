@@ -1,4 +1,130 @@
 (() => {
+    const { useState } = React;
+
+    const OneTimeCalendarSelector = ({
+        cashflowForm,
+        FIELD_LABEL_CLASS,
+        CASHFLOW_INPUT_CLASS,
+        toggleCashflowOneTimeDate,
+        updateCashflowOneTimeMonth,
+        applyCashflowOneTimeMonthPreset,
+        clearCashflowOneTimeDates,
+        parseDateKey,
+        toDateKey
+    }) => {
+        const [customWeekdays, setCustomWeekdays] = useState([1, 2, 3, 4, 5]);
+        const selectedDateSet = new Set(Array.isArray(cashflowForm.oneTimeDates) ? cashflowForm.oneTimeDates : []);
+        const anchorDate = parseDateKey(cashflowForm.startDate) || new Date();
+        const year = anchorDate.getFullYear();
+        const month = anchorDate.getMonth();
+        const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+        const firstWeekday = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        const dayCells = [];
+        for (let i = 0; i < firstWeekday; i += 1) dayCells.push(null);
+        for (let day = 1; day <= daysInMonth; day += 1) {
+            dayCells.push(toDateKey(new Date(year, month, day)));
+        }
+        while (dayCells.length % 7 !== 0) dayCells.push(null);
+
+        const weekdayOptions = [
+            { value: 1, label: '一' },
+            { value: 2, label: '二' },
+            { value: 3, label: '三' },
+            { value: 4, label: '四' },
+            { value: 5, label: '五' },
+            { value: 6, label: '六' },
+            { value: 0, label: '日' }
+        ];
+
+        const toggleCustomWeekday = (weekday) => {
+            setCustomWeekdays(prev => {
+                const hasValue = prev.includes(weekday);
+                if (hasValue) {
+                    const next = prev.filter(item => item !== weekday);
+                    return next.length > 0 ? next : prev;
+                }
+                return [...prev, weekday].sort((a, b) => a - b);
+            });
+        };
+
+        return (
+            <div className="space-y-1 col-span-2 xl:col-span-2">
+                <label className={FIELD_LABEL_CLASS}>單次日期（可多選）</label>
+                <div className="flex items-center justify-between gap-2">
+                    <input
+                        type="month"
+                        className={CASHFLOW_INPUT_CLASS}
+                        value={monthKey}
+                        onChange={event => updateCashflowOneTimeMonth(event.target.value)}
+                    />
+                    <button type="button" onClick={clearCashflowOneTimeDates} className="px-2 py-1 rounded-md text-[10px] font-black text-rose-500 bg-rose-50 hover:bg-rose-100 whitespace-nowrap">清除日期</button>
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                    <button type="button" onClick={() => applyCashflowOneTimeMonthPreset('WEEKDAYS', monthKey)} className="px-2.5 py-1 rounded-md theme-tab-inactive text-[10px] font-black">本月週一至週五</button>
+                    <button type="button" onClick={() => applyCashflowOneTimeMonthPreset('WEEKENDS', monthKey)} className="px-2.5 py-1 rounded-md theme-tab-inactive text-[10px] font-black">本月週末</button>
+                    <button type="button" onClick={() => applyCashflowOneTimeMonthPreset('ALL_DAYS', monthKey)} className="px-2.5 py-1 rounded-md theme-tab-inactive text-[10px] font-black">本月每日</button>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                    <span className="text-[10px] text-slate-400 font-black mr-1">自訂星期：</span>
+                    {weekdayOptions.map(option => {
+                        const active = customWeekdays.includes(option.value);
+                        return (
+                            <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => toggleCustomWeekday(option.value)}
+                                className={`px-2 py-0.5 rounded-md text-[10px] font-black transition-all ${active ? 'theme-tab-active' : 'theme-tab-inactive'}`}
+                            >
+                                週{option.label}
+                            </button>
+                        );
+                    })}
+                    <button
+                        type="button"
+                        onClick={() => applyCashflowOneTimeMonthPreset('CUSTOM_WEEKDAYS', monthKey, customWeekdays)}
+                        className="px-2.5 py-1 rounded-md theme-tab-inactive text-[10px] font-black"
+                    >
+                        套用自訂星期
+                    </button>
+                </div>
+                <div className="grid grid-cols-7 gap-1 mt-1">
+                    {['日', '一', '二', '三', '四', '五', '六'].map(label => (
+                        <div key={label} className="text-[10px] text-slate-400 font-black text-center">{label}</div>
+                    ))}
+                    {dayCells.map((dateKey, index) => {
+                        if (!dateKey) {
+                            return <div key={`empty-${index}`} className="h-8" />;
+                        }
+                        const day = Number(dateKey.slice(-2));
+                        const selected = selectedDateSet.has(dateKey);
+                        return (
+                            <button
+                                key={dateKey}
+                                type="button"
+                                onClick={() => toggleCashflowOneTimeDate(dateKey)}
+                                className={`h-8 rounded-md text-xs font-black transition-all ${selected ? 'theme-tab-active' : 'theme-tab-inactive'}`}
+                                title={dateKey}
+                            >
+                                {day}
+                            </button>
+                        );
+                    })}
+                </div>
+                {selectedDateSet.size > 0 && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        {Array.from(selectedDateSet).sort().slice(0, 8).map(dateKey => (
+                            <span key={dateKey} className="px-2 py-1 rounded-md theme-soft-surface text-[10px] font-black theme-text-sub">{dateKey}</span>
+                        ))}
+                        {selectedDateSet.size > 8 && <span className="text-[10px] text-slate-400 font-black">等 {selectedDateSet.size} 日</span>}
+                    </div>
+                )}
+                <div className="text-[10px] text-slate-400 font-bold ml-1">直接點擊日期可選取/取消，規則會在所選日期各自入帳/扣款。</div>
+            </div>
+        );
+    };
+
     const CashflowRuleForm = ({
         cashflowFormRef,
         handleCashflowSubmit,
@@ -10,6 +136,10 @@
         CASHFLOW_INPUT_FOCUS_CLASS,
         cashflowForm,
         updateCashflowField,
+        toggleCashflowOneTimeDate,
+        updateCashflowOneTimeMonth,
+        applyCashflowOneTimeMonthPreset,
+        clearCashflowOneTimeDates,
         updateCashflowType,
         updateCashflowTargetLiquidAsset,
         CASHFLOW_TYPES,
@@ -19,7 +149,9 @@
         isCashflowOneTime,
         isCashflowMonthlyRecurring,
         CASHFLOW_FREQUENCIES,
-        availableCashflowCategories
+        availableCashflowCategories,
+        parseDateKey,
+        toDateKey
     }) => (
         <form ref={cashflowFormRef} onSubmit={handleCashflowSubmit} className="order-2 rounded-xl theme-soft-surface p-4 space-y-3">
             {editingCashflowId && (
@@ -75,10 +207,24 @@
                             </select>
                         </div>
                     )}
-                    <div className="space-y-1">
-                        <label className={FIELD_LABEL_CLASS}>{isCashflowOneTime ? '記錄日期' : '開始日期'}</label>
-                        <input required type="date" className={CASHFLOW_INPUT_CLASS} value={cashflowForm.startDate} onChange={updateCashflowField('startDate')} />
-                    </div>
+                    {isCashflowOneTime ? (
+                        <OneTimeCalendarSelector
+                            cashflowForm={cashflowForm}
+                            FIELD_LABEL_CLASS={FIELD_LABEL_CLASS}
+                            CASHFLOW_INPUT_CLASS={CASHFLOW_INPUT_CLASS}
+                            toggleCashflowOneTimeDate={toggleCashflowOneTimeDate}
+                            updateCashflowOneTimeMonth={updateCashflowOneTimeMonth}
+                            applyCashflowOneTimeMonthPreset={applyCashflowOneTimeMonthPreset}
+                            clearCashflowOneTimeDates={clearCashflowOneTimeDates}
+                            parseDateKey={parseDateKey}
+                            toDateKey={toDateKey}
+                        />
+                    ) : (
+                        <div className="space-y-1">
+                            <label className={FIELD_LABEL_CLASS}>開始日期</label>
+                            <input required type="date" className={CASHFLOW_INPUT_CLASS} value={cashflowForm.startDate} onChange={updateCashflowField('startDate')} />
+                        </div>
+                    )}
                     {isCashflowMonthlyRecurring && (
                         <div className="space-y-1">
                             <label className={FIELD_LABEL_CLASS}>每月記錄日</label>
@@ -142,7 +288,7 @@
                 </details>
 
                 <button type="submit" className="w-full theme-btn-primary text-white px-4 py-3 rounded-xl font-black text-sm transition-all">
-                    {editingCashflowId ? '儲存規則修改' : '新增現金流規則'}
+                    {editingCashflowId ? '儲存規則修改' : '新增現金流'}
                 </button>
             </div>
 
@@ -244,16 +390,30 @@
                             </select>
                         </div>
                     )}
-                    <div className="space-y-1">
-                        <label className={FIELD_LABEL_CLASS}>{isCashflowOneTime ? '記錄日期' : '開始日期'}</label>
-                        <input
-                            required
-                            type="date"
-                            className={CASHFLOW_INPUT_CLASS}
-                            value={cashflowForm.startDate}
-                            onChange={updateCashflowField('startDate')}
+                    {isCashflowOneTime ? (
+                        <OneTimeCalendarSelector
+                            cashflowForm={cashflowForm}
+                            FIELD_LABEL_CLASS={FIELD_LABEL_CLASS}
+                            CASHFLOW_INPUT_CLASS={CASHFLOW_INPUT_CLASS}
+                            toggleCashflowOneTimeDate={toggleCashflowOneTimeDate}
+                            updateCashflowOneTimeMonth={updateCashflowOneTimeMonth}
+                            applyCashflowOneTimeMonthPreset={applyCashflowOneTimeMonthPreset}
+                            clearCashflowOneTimeDates={clearCashflowOneTimeDates}
+                            parseDateKey={parseDateKey}
+                            toDateKey={toDateKey}
                         />
-                    </div>
+                    ) : (
+                        <div className="space-y-1">
+                            <label className={FIELD_LABEL_CLASS}>開始日期</label>
+                            <input
+                                required
+                                type="date"
+                                className={CASHFLOW_INPUT_CLASS}
+                                value={cashflowForm.startDate}
+                                onChange={updateCashflowField('startDate')}
+                            />
+                        </div>
+                    )}
                     {isCashflowMonthlyRecurring && (
                         <div className="space-y-1">
                             <label className={FIELD_LABEL_CLASS}>每月記錄日</label>
@@ -308,7 +468,7 @@
                         type="submit"
                         className="w-full theme-btn-primary text-white px-4 py-3 rounded-xl font-black text-sm transition-all"
                     >
-                        {editingCashflowId ? '儲存規則修改' : '新增現金流規則'}
+                        {editingCashflowId ? '儲存規則修改' : '新增現金流'}
                     </button>
                 </div>
             </div>

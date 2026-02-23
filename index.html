@@ -249,16 +249,38 @@
         .theme-chip-inactive:hover {
             background-color: var(--panel-soft, #FEF5F7);
         }
+        .category-filter-chip {
+            background-color: var(--chip-bg, #ffffff);
+            color: var(--chip-text, #334155);
+            border: 1px solid var(--chip-border, #cbd5e1);
+            box-shadow: var(--chip-shadow, none);
+        }
+        .category-filter-chip:hover {
+            background-color: color-mix(in srgb, var(--chip-base, #8B5CF6) 24%, #ffffff 76%);
+            border-color: color-mix(in srgb, var(--chip-base, #8B5CF6) 52%, #ffffff 48%);
+        }
+        .category-filter-chip[data-active='true']:hover {
+            background-color: color-mix(in srgb, var(--chip-base, #8B5CF6) 88%, #111827 12%);
+            border-color: color-mix(in srgb, var(--chip-base, #8B5CF6) 88%, #111827 12%);
+            box-shadow: 0 6px 14px color-mix(in srgb, var(--chip-base, #8B5CF6) 34%, transparent 66%);
+        }
+        .category-filter-chip:focus-visible {
+            outline: none;
+            box-shadow:
+                0 0 0 2px color-mix(in srgb, #ffffff 72%, transparent 28%),
+                0 0 0 4px color-mix(in srgb, var(--chip-base, #8B5CF6) 56%, transparent 44%),
+                var(--chip-shadow, none);
+        }
         .theme-bar-bg {
             background-color: color-mix(in srgb, var(--panel-soft, #FEF5F7) 75%, var(--panel-bg, #FFFFFF) 25%);
         }
         .theme-income-card {
-            background-color: color-mix(in srgb, var(--accent, #A7D8DE) 18%, #FFFFFF 82%);
-            border: 1px solid color-mix(in srgb, var(--accent, #A7D8DE) 55%, #FFFFFF 45%);
+            background-color: #ECFDF5;
+            border: 1px solid #A7F3D0;
         }
         .theme-expense-card {
-            background-color: color-mix(in srgb, var(--danger, #FFB3BA) 18%, #FFFFFF 82%);
-            border: 1px solid color-mix(in srgb, var(--danger, #FFB3BA) 55%, #FFFFFF 45%);
+            background-color: #FFF1F2;
+            border: 1px solid #FECDD3;
         }
         .theme-netflow-card {
             background-color: color-mix(in srgb, var(--primary, #FFB6C1) 16%, #FFFFFF 84%);
@@ -687,6 +709,7 @@
                     currency: 'HKD',
                     frequency: 'MONTHLY',
                     startDate: today,
+                    oneTimeDates: [],
                     endDate: '',
                     payday: '25',
                     targetLiquidAssetId: '',
@@ -694,6 +717,90 @@
                 };
             });
             const updateCashflowField = (field) => (event) => setCashflowForm(prev => ({ ...prev, [field]: event.target.value }));
+            const normalizeOneTimeDateList = (rawList) => {
+                const unique = new Set();
+                (Array.isArray(rawList) ? rawList : []).forEach(item => {
+                    const raw = typeof item === 'string' ? item : '';
+                    const parsed = parseDateKey(raw);
+                    if (!parsed) return;
+                    unique.add(toDateKey(parsed));
+                });
+                return Array.from(unique).sort();
+            };
+            const toggleCashflowOneTimeDate = (dateKey) => {
+                setCashflowForm(prev => {
+                    const hasDate = (prev.oneTimeDates || []).includes(dateKey);
+                    const normalized = hasDate
+                        ? normalizeOneTimeDateList((prev.oneTimeDates || []).filter(item => item !== dateKey))
+                        : normalizeOneTimeDateList([...(prev.oneTimeDates || []), dateKey]);
+                    return {
+                        ...prev,
+                        startDate: dateKey,
+                        oneTimeDates: normalized
+                    };
+                });
+            };
+            const updateCashflowOneTimeMonth = (monthKey) => {
+                const match = /^(\d{4})-(\d{2})$/.exec(monthKey || '');
+                if (!match) return;
+                const year = Number(match[1]);
+                const month = Number(match[2]);
+                if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) return;
+
+                setCashflowForm(prev => {
+                    const parsedStart = parseDateKey(prev.startDate) || new Date();
+                    const currentDay = parsedStart.getDate();
+                    const daysInMonth = new Date(year, month, 0).getDate();
+                    const nextDay = Math.min(currentDay, daysInMonth);
+                    const nextDate = toDateKey(new Date(year, month - 1, nextDay));
+                    return {
+                        ...prev,
+                        startDate: nextDate
+                    };
+                });
+            };
+            const applyCashflowOneTimeMonthPreset = (mode, monthKey, weekdayIndexes = []) => {
+                const match = /^(\d{4})-(\d{2})$/.exec(monthKey || '');
+                if (!match) return;
+
+                const year = Number(match[1]);
+                const month = Number(match[2]);
+                if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) return;
+
+                const daysInMonth = new Date(year, month, 0).getDate();
+                const generated = [];
+                const customWeekdaySet = new Set(
+                    (Array.isArray(weekdayIndexes) ? weekdayIndexes : [])
+                        .map(value => Number(value))
+                        .filter(value => Number.isInteger(value) && value >= 0 && value <= 6)
+                );
+                for (let day = 1; day <= daysInMonth; day += 1) {
+                    const current = new Date(year, month - 1, day);
+                    const weekday = current.getDay();
+                    if (mode === 'WEEKDAYS' && (weekday === 0 || weekday === 6)) continue;
+                    if (mode === 'WEEKENDS' && weekday !== 0 && weekday !== 6) continue;
+                    if (mode === 'CUSTOM_WEEKDAYS' && !customWeekdaySet.has(weekday)) continue;
+                    generated.push(toDateKey(current));
+                }
+
+                setCashflowForm(prev => {
+                    const monthPrefix = `${monthKey}-`;
+                    const remaining = (prev.oneTimeDates || []).filter(dateKey => !String(dateKey).startsWith(monthPrefix));
+                    const normalized = normalizeOneTimeDateList([...remaining, ...generated]);
+                    const fallbackStartDate = generated[0] || prev.startDate;
+                    return {
+                        ...prev,
+                        startDate: fallbackStartDate,
+                        oneTimeDates: normalized
+                    };
+                });
+            };
+            const clearCashflowOneTimeDates = () => {
+                setCashflowForm(prev => ({
+                    ...prev,
+                    oneTimeDates: []
+                }));
+            };
             const updateCashflowType = (event) => {
                 const nextType = event.target.value;
                 setCashflowForm(prev => ({
@@ -727,6 +834,18 @@
                 return familyMap[rawThemeId] || rawThemeId;
             };
 
+            const themeTokensById = useMemo(() => {
+                const themeMap = window.APP_THEME_SYSTEM?.THEMES || {};
+                const fallbackTokens = themeMap['macaron-prince']?.tokens || {};
+                const selectedTokens = themeMap[themeId]?.tokens || fallbackTokens;
+                return { ...fallbackTokens, ...selectedTokens };
+            }, [themeId]);
+
+            const getThemeTokenByTheme = (tokenName, fallback) => {
+                const value = themeTokensById[tokenName];
+                return value || fallback;
+            };
+
             const getThemeToken = (tokenName, fallback) => {
                 if (typeof window === 'undefined' || typeof document === 'undefined') return fallback;
                 const value = getComputedStyle(document.documentElement).getPropertyValue(tokenName).trim();
@@ -735,39 +854,144 @@
 
             const chartThemePalette = useMemo(() => {
                 return [
-                    getThemeToken('--primary', '#F472B6'),
-                    getThemeToken('--accent', '#38BDF8'),
-                    getThemeToken('--gold', '#F59E0B'),
-                    getThemeToken('--card-net-mid', '#A78BFA'),
-                    getThemeToken('--card-net-end', '#818CF8'),
-                    getThemeToken('--danger', '#F43F5E'),
-                    getThemeToken('--header-border', '#22D3EE'),
-                    getThemeToken('--panel-soft', '#FB7185')
+                    getThemeTokenByTheme('--primary', '#F472B6'),
+                    getThemeTokenByTheme('--accent', '#38BDF8'),
+                    getThemeTokenByTheme('--gold', '#F59E0B'),
+                    getThemeTokenByTheme('--card-net-mid', '#A78BFA'),
+                    getThemeTokenByTheme('--card-net-end', '#818CF8'),
+                    getThemeTokenByTheme('--danger', '#F43F5E'),
+                    getThemeTokenByTheme('--header-border', '#22D3EE'),
+                    getThemeTokenByTheme('--panel-soft', '#FB7185')
                 ];
-            }, [themeId]);
+            }, [themeTokensById]);
 
             const exportThemeTokens = useMemo(() => ({
-                '--bg-page': getThemeToken('--bg-page', '#ffffff'),
-                '--text-main': getThemeToken('--text-main', '#0f172a'),
-                '--text-sub': getThemeToken('--text-sub', '#475569'),
-                '--panel-bg': getThemeToken('--panel-bg', '#ffffff'),
-                '--panel-soft': getThemeToken('--panel-soft', '#f8fafc'),
-                '--header-border': getThemeToken('--header-border', '#cbd5e1'),
-                '--primary': getThemeToken('--primary', '#F472B6'),
-                '--accent': getThemeToken('--accent', '#38BDF8'),
-                '--gold': getThemeToken('--gold', '#F59E0B'),
-                '--danger': getThemeToken('--danger', '#F43F5E')
-            }), [themeId]);
+                '--bg-page': getThemeTokenByTheme('--bg-page', '#ffffff'),
+                '--text-main': getThemeTokenByTheme('--text-main', '#0f172a'),
+                '--text-sub': getThemeTokenByTheme('--text-sub', '#475569'),
+                '--panel-bg': getThemeTokenByTheme('--panel-bg', '#ffffff'),
+                '--panel-soft': getThemeTokenByTheme('--panel-soft', '#f8fafc'),
+                '--header-border': getThemeTokenByTheme('--header-border', '#cbd5e1'),
+                '--primary': getThemeTokenByTheme('--primary', '#F472B6'),
+                '--accent': getThemeTokenByTheme('--accent', '#38BDF8'),
+                '--gold': getThemeTokenByTheme('--gold', '#F59E0B'),
+                '--danger': getThemeTokenByTheme('--danger', '#F43F5E')
+            }), [themeTokensById]);
 
             const categoryMixHexByKey = useMemo(() => {
-                return {
-                    LIQUID: getThemeToken('--accent', '#0EA5E9'),
-                    INVEST: getThemeToken('--primary', '#8B5CF6'),
-                    INSURANCE: getThemeToken('--card-net-mid', '#06B6D4'),
-                    FIXED: getThemeToken('--gold', '#F59E0B'),
-                    RECEIVABLE: getThemeToken('--card-net-end', '#6366F1'),
-                    LIABILITY: getThemeToken('--danger', '#F43F5E')
+                const paletteByTheme = {
+                    'macaron-prince': {
+                        LIQUID: '#4FC7D4',
+                        INVEST: '#6D88FF',
+                        INSURANCE: '#9A7CFF',
+                        FIXED: '#E8B25C',
+                        RECEIVABLE: '#54C3A0',
+                        LIABILITY: '#FF5D7A'
+                    },
+                    'mint-prince': {
+                        LIQUID: '#55C6E6',
+                        INVEST: '#4A73D8',
+                        INSURANCE: '#7A6EFA',
+                        FIXED: '#E1B04B',
+                        RECEIVABLE: '#4FB58D',
+                        LIABILITY: '#D95B83'
+                    },
+                    'lavender-prince': {
+                        LIQUID: '#45C6D8',
+                        INVEST: '#4B9BE4',
+                        INSURANCE: '#6F7CFF',
+                        FIXED: '#E7AF4E',
+                        RECEIVABLE: '#50C1A7',
+                        LIABILITY: '#F76B92'
+                    },
+                    'strawberry-tart-prince': {
+                        LIQUID: '#5EC8B0',
+                        INVEST: '#5D8CFF',
+                        INSURANCE: '#9C78FF',
+                        FIXED: '#E8AB4D',
+                        RECEIVABLE: '#58BF93',
+                        LIABILITY: '#E84E74'
+                    },
+                    'caramel-pudding-prince': {
+                        LIQUID: '#55AFCB',
+                        INVEST: '#4F77C8',
+                        INSURANCE: '#876BD4',
+                        FIXED: '#D79B33',
+                        RECEIVABLE: '#4EA681',
+                        LIABILITY: '#CC6746'
+                    },
+                    'milk-tea-boba-prince': {
+                        LIQUID: '#5EAAC5',
+                        INVEST: '#5D74C0',
+                        INSURANCE: '#8573CC',
+                        FIXED: '#C99845',
+                        RECEIVABLE: '#5AA07A',
+                        LIABILITY: '#B86556'
+                    },
+                    'black-forest-prince': {
+                        LIQUID: '#4A8EAA',
+                        INVEST: '#4F62AF',
+                        INSURANCE: '#7867CE',
+                        FIXED: '#BE8C3A',
+                        RECEIVABLE: '#4A8E70',
+                        LIABILITY: '#85253A'
+                    },
+                    'coconut-snowball-prince': {
+                        LIQUID: '#87CFE2',
+                        INVEST: '#5D9EC1',
+                        INSURANCE: '#7B86E8',
+                        FIXED: '#D3B373',
+                        RECEIVABLE: '#6ABF9F',
+                        LIABILITY: '#B67A92'
+                    }
                 };
+
+                const fallbackPalette = paletteByTheme['macaron-prince'];
+                const resolvedThemeId = paletteByTheme[themeId] ? themeId : resolveThemeFamily(themeId);
+                const selectedPalette = paletteByTheme[resolvedThemeId] || fallbackPalette;
+
+                return {
+                    LIQUID: selectedPalette.LIQUID,
+                    INVEST: selectedPalette.INVEST,
+                    INSURANCE: selectedPalette.INSURANCE,
+                    FIXED: selectedPalette.FIXED,
+                    RECEIVABLE: selectedPalette.RECEIVABLE,
+                    LIABILITY: selectedPalette.LIABILITY
+                };
+            }, [themeId]);
+
+            const detailMixPalette = useMemo(() => {
+                const paletteByTheme = {
+                    'macaron-prince': ['#FF7FA9', '#4FC7D4', '#8F7BFF', '#E8B25C', '#57A0FF', '#FF5D7A', '#6CCF8A', '#C68BFF'],
+                    'mint-prince': ['#4C78DA', '#56C8E8', '#7C70FF', '#E2B24E', '#52B58F', '#D85A8E', '#5FA3F5', '#9F86FF'],
+                    'lavender-prince': ['#45A9E7', '#46C9B8', '#6E7DFF', '#E7AF4E', '#50C0FF', '#FF668B', '#63B8A7', '#9A87FF'],
+                    'strawberry-tart-prince': ['#E7486D', '#63C89D', '#9A77FF', '#E8AB4D', '#5A9DFF', '#E74F77', '#4DB9C1', '#BE7CFF'],
+                    'caramel-pudding-prince': ['#C56F2D', '#DB9E43', '#8E74DE', '#D79B33', '#4D8EE5', '#CD6A49', '#4EA68C', '#A483E8'],
+                    'milk-tea-boba-prince': ['#A5663B', '#B58A5A', '#8B79D4', '#C99845', '#5C98D8', '#B86556', '#5EAA95', '#9F87DB'],
+                    'black-forest-prince': ['#6B2434', '#A44962', '#7867CE', '#BE8C3A', '#4F8BCF', '#85253A', '#54997F', '#967BD8'],
+                    'coconut-snowball-prince': ['#5D9EC1', '#88CEE1', '#7B86E8', '#D3B373', '#4FAFD8', '#B77B93', '#71C2A9', '#9AA4EE']
+                };
+
+                const fallbackPalette = paletteByTheme['macaron-prince'];
+                const resolvedThemeId = paletteByTheme[themeId] ? themeId : resolveThemeFamily(themeId);
+                const selectedPalette = paletteByTheme[resolvedThemeId] || fallbackPalette;
+                const getLuminance = (hex) => {
+                    const normalized = String(hex || '').replace('#', '');
+                    if (normalized.length !== 6) return 255;
+                    const red = parseInt(normalized.slice(0, 2), 16);
+                    const green = parseInt(normalized.slice(2, 4), 16);
+                    const blue = parseInt(normalized.slice(4, 6), 16);
+                    if (!Number.isFinite(red) || !Number.isFinite(green) || !Number.isFinite(blue)) return 255;
+                    return red * 0.299 + green * 0.587 + blue * 0.114;
+                };
+
+                return [...selectedPalette]
+                    .map((color, index) => ({ color, index, luminance: getLuminance(color) }))
+                    .sort((a, b) => {
+                        if (a.luminance === b.luminance) return a.index - b.index;
+                        return a.luminance - b.luminance;
+                    })
+                    .map(item => item.color);
             }, [themeId]);
 
             const buildNetworthCardStyle = (currentThemeId, tierIndex) => {
@@ -957,6 +1181,41 @@
                 }
                 localStorage.setItem(STORAGE_KEYS.themeId, JSON.stringify(appliedThemeId));
             }, [themeId]);
+
+            useEffect(() => {
+                if (!isModalOpen) return;
+
+                const body = document.body;
+                const html = document.documentElement;
+                const scrollY = window.scrollY || window.pageYOffset || 0;
+
+                const prevBodyOverflow = body.style.overflow;
+                const prevBodyPosition = body.style.position;
+                const prevBodyTop = body.style.top;
+                const prevBodyLeft = body.style.left;
+                const prevBodyRight = body.style.right;
+                const prevBodyWidth = body.style.width;
+                const prevHtmlOverflow = html.style.overflow;
+
+                body.style.overflow = 'hidden';
+                body.style.position = 'fixed';
+                body.style.top = `-${scrollY}px`;
+                body.style.left = '0';
+                body.style.right = '0';
+                body.style.width = '100%';
+                html.style.overflow = 'hidden';
+
+                return () => {
+                    body.style.overflow = prevBodyOverflow;
+                    body.style.position = prevBodyPosition;
+                    body.style.top = prevBodyTop;
+                    body.style.left = prevBodyLeft;
+                    body.style.right = prevBodyRight;
+                    body.style.width = prevBodyWidth;
+                    html.style.overflow = prevHtmlOverflow;
+                    window.scrollTo(0, scrollY);
+                };
+            }, [isModalOpen]);
 
             useEffect(() => {
                 if (window.lucide) window.lucide.createIcons();
@@ -1291,17 +1550,22 @@
                 });
 
                 const totalHKD = Object.values(groupMap).reduce((sum, value) => sum + value, 0);
-                const palette = chartThemePalette;
+                const palette = detailMixPalette;
 
-                const rows = Object.entries(groupMap)
-                    .map(([label, valueHKD], idx) => ({
-                        label,
-                        valueHKD,
-                        amount: fromHKD(valueHKD, displayCurrency),
-                        ratio: totalHKD > 0 ? (valueHKD / totalHKD) * 100 : 0,
-                        color: palette[idx % palette.length]
-                    }))
-                    .sort((a, b) => b.valueHKD - a.valueHKD);
+                const sortedEntries = Object.entries(groupMap)
+                    .sort((a, b) => {
+                        const valueDiff = b[1] - a[1];
+                        if (Math.abs(valueDiff) > 0.000001) return valueDiff;
+                        return String(a[0]).localeCompare(String(b[0]), 'zh-Hant', { sensitivity: 'base', numeric: true });
+                    });
+
+                const rows = sortedEntries.map(([label, valueHKD], idx) => ({
+                    label,
+                    valueHKD,
+                    amount: fromHKD(valueHKD, displayCurrency),
+                    ratio: totalHKD > 0 ? (valueHKD / totalHKD) * 100 : 0,
+                    color: palette[idx % palette.length]
+                }));
 
                 let cumulative = 0;
                 const segments = rows
@@ -1319,11 +1583,12 @@
                     rows,
                     gradient: segments.length ? `conic-gradient(${segments.join(', ')})` : `conic-gradient(${emptyColor} 0% 100%)`
                 };
-            }, [assets, selectedMixCategory, displayCurrency, currencyRates, chartThemePalette]);
+            }, [assets, selectedMixCategory, displayCurrency, currencyRates, detailMixPalette]);
 
             const accountStats = useMemo(() => {
                 const category = selectedStatsCategory;
                 const categoryAssets = assets.filter(item => item.category === category);
+                const categoryPalette = detailMixPalette;
 
                 const accountMap = {};
                 categoryAssets.forEach(item => {
@@ -1376,12 +1641,17 @@
                     });
                 }
 
-                const items = Object.values(grouped)
-                    .map((entry, index) => ({
-                        ...entry,
-                        color: chartThemePalette[index % chartThemePalette.length]
-                    }))
-                    .sort((a, b) => b.valueDisplay - a.valueDisplay);
+                const sortedItems = Object.values(grouped)
+                    .sort((a, b) => {
+                        const valueDiff = b.valueDisplay - a.valueDisplay;
+                        if (Math.abs(valueDiff) > 0.000001) return valueDiff;
+                        return String(a.label || '').localeCompare(String(b.label || ''), 'zh-Hant', { sensitivity: 'base', numeric: true });
+                    });
+
+                const items = sortedItems.map((entry, index) => ({
+                    ...entry,
+                    color: categoryPalette[index % categoryPalette.length]
+                }));
 
                 const total = items.reduce((sum, item) => sum + item.valueDisplay, 0);
                 const itemsWithRatio = items.map(item => ({
@@ -1413,7 +1683,7 @@
                     selectedItem,
                     mode: statsBreakdownMode
                 };
-            }, [assets, displayCurrency, selectedStatsCategory, selectedStatsAccount, selectedStatsSegmentKey, statsBreakdownMode, currencyRates, chartThemePalette]);
+            }, [assets, displayCurrency, selectedStatsCategory, selectedStatsAccount, selectedStatsSegmentKey, statsBreakdownMode, currencyRates, detailMixPalette]);
 
             const liquidAssetOptions = useMemo(() => {
                 return assets
@@ -1615,7 +1885,8 @@
                 setCashflowForm(buildCashflowFormFromEntry({
                     entry,
                     getDefaultCashflowCategory,
-                    toDateKey
+                    toDateKey,
+                    parseDateKey
                 }));
                 setFinanceSectionTab('CASHFLOW');
                 setPriceStatus('已載入規則，可修改後儲存');
@@ -1649,6 +1920,7 @@
                     title: '',
                     amount: '',
                     note: '',
+                    oneTimeDates: [],
                     targetLiquidAssetId: prev.targetLiquidAssetId || ''
                 }));
                 setEditingCashflowId('');
@@ -1735,7 +2007,8 @@
                     ...prev,
                     title: '',
                     amount: '',
-                    note: ''
+                    note: '',
+                    oneTimeDates: []
                 }));
                 setPriceStatus('已取消編輯');
             };
@@ -1751,8 +2024,10 @@
                     setCurrencyRates(nextRates);
                     setLastRateUpdate(stamp);
                     if (showToast) setPriceStatus('已更新最新匯率');
+                    return nextRates;
                 } catch (error) {
                     if (showToast) setPriceStatus('匯率更新失敗，已使用目前匯率');
+                    return null;
                 } finally {
                     setIsUpdatingRates(false);
                 }
@@ -1780,7 +2055,7 @@
                 }
             }, [accountStats.accountNames, accountStats.segments, selectedStatsAccount, selectedStatsSegmentKey]);
 
-            const updateMarketPrices = async (showToast) => {
+            const updateMarketPrices = async (showToast = true, ratesOverride = null) => {
                 const latestAssets = assetsRef.current;
                 const {
                     stockTargets,
@@ -1796,7 +2071,9 @@
                 }
 
                 setIsUpdatingPrice(true);
-                setPriceStatus(tByLang('更新行情中...', 'Updating market prices...', '相場を更新中...'));
+                if (showToast) {
+                    setPriceStatus(tByLang('更新行情中...', 'Updating market prices...', '相場を更新中...'));
+                }
 
                 const [stockQuotes, cryptoQuotesUSD] = await Promise.all([
                     fetchYahooQuotes(stockSymbols),
@@ -1813,7 +2090,7 @@
                         stockSymbolMap,
                         stockQuotes,
                         cryptoQuotesUSD,
-                        currencyRates,
+                        currencyRates: ratesOverride || currencyRates,
                         defaultUsdRate: DEFAULT_RATES.USD
                     });
                     finalUpdatedCount = updatedCount;
@@ -1823,9 +2100,27 @@
                 const stamp = new Date();
                 setLastPriceUpdate(stamp);
                 setIsUpdatingPrice(false);
-                setPriceStatus(finalUpdatedCount > 0
-                    ? tByLang(`已更新 ${finalUpdatedCount} 筆行情`, `Updated ${finalUpdatedCount} market entries`, `${finalUpdatedCount}件の相場を更新しました`)
-                    : tByLang('行情已是最新或資料源暫不可用', 'Market data is already up to date or source is temporarily unavailable', '相場は最新、またはデータソースが一時利用不可です'));
+                if (showToast) {
+                    setPriceStatus(finalUpdatedCount > 0
+                        ? tByLang(`已更新 ${finalUpdatedCount} 筆行情`, `Updated ${finalUpdatedCount} market entries`, `${finalUpdatedCount}件の相場を更新しました`)
+                        : tByLang('行情已是最新或資料源暫不可用', 'Market data is already up to date or source is temporarily unavailable', '相場は最新、またはデータソースが一時利用不可です'));
+                }
+            };
+
+            const updateMarketAndRates = async ({ updateMarket = true, updateRates = true, showToast = true } = {}) => {
+                if (showToast) {
+                    setPriceStatus(tByLang('更新行情與匯率中...', 'Updating prices & exchange rates...', '相場と為替を更新中...'));
+                }
+                let latestRates = null;
+                if (updateRates) {
+                    latestRates = await refreshCurrencyRates(false);
+                }
+                if (updateMarket) {
+                    await updateMarketPrices(false, latestRates);
+                }
+                if (showToast) {
+                    setPriceStatus(tByLang('已更新行情與匯率', 'Prices & FX updated', '相場と為替を更新しました'));
+                }
             };
 
             useEffect(() => {
@@ -2116,10 +2411,9 @@
             };
 
             useEffect(() => {
-                updateMarketPrices(false);
-                refreshCurrencyRates(false);
-                const timer = setInterval(() => updateMarketPrices(false), 5 * 60 * 1000);
-                const rateTimer = setInterval(() => refreshCurrencyRates(false), 30 * 60 * 1000);
+                updateMarketAndRates({ updateMarket: true, updateRates: true, showToast: false });
+                const timer = setInterval(() => updateMarketAndRates({ updateMarket: true, updateRates: false, showToast: false }), 5 * 60 * 1000);
+                const rateTimer = setInterval(() => updateMarketAndRates({ updateMarket: false, updateRates: true, showToast: false }), 30 * 60 * 1000);
                 return () => {
                     clearInterval(timer);
                     clearInterval(rateTimer);
@@ -2207,6 +2501,53 @@
                     hintFill: `color-mix(in srgb, var(${subVar}) 42%, var(--text-sub, #64748B) 58%)`
                 };
             }, [themeId, netWorthTierIndex]);
+
+            const normalizeHexColor = (hex, fallback = '#8B5CF6') => {
+                const raw = String(hex || '').trim().replace('#', '');
+                if (raw.length === 3) {
+                    return `#${raw.split('').map(ch => ch + ch).join('')}`;
+                }
+                if (raw.length !== 6) return fallback;
+                return `#${raw}`;
+            };
+
+            const hexToRgbObject = (hex) => {
+                const normalized = normalizeHexColor(hex).replace('#', '');
+                const r = Number.parseInt(normalized.slice(0, 2), 16);
+                const g = Number.parseInt(normalized.slice(2, 4), 16);
+                const b = Number.parseInt(normalized.slice(4, 6), 16);
+                return {
+                    r: Number.isFinite(r) ? r : 139,
+                    g: Number.isFinite(g) ? g : 92,
+                    b: Number.isFinite(b) ? b : 246
+                };
+            };
+
+            const toRgba = (hex, alpha) => {
+                const { r, g, b } = hexToRgbObject(hex);
+                const safeAlpha = Math.max(0, Math.min(1, Number(alpha) || 0));
+                return `rgba(${r}, ${g}, ${b}, ${safeAlpha})`;
+            };
+
+            const buildCategoryChipStyle = (baseColor, isActive) => {
+                const normalized = normalizeHexColor(baseColor);
+                if (isActive) {
+                    return {
+                        '--chip-base': normalized,
+                        '--chip-bg': normalized,
+                        '--chip-text': '#ffffff',
+                        '--chip-border': normalized,
+                        '--chip-shadow': `0 4px 10px ${toRgba(normalized, 0.24)}`
+                    };
+                }
+                return {
+                    '--chip-base': normalized,
+                    '--chip-bg': toRgba(normalized, 0.14),
+                    '--chip-text': toRgba(normalized, 0.96),
+                    '--chip-border': toRgba(normalized, 0.42),
+                    '--chip-shadow': 'none'
+                };
+            };
 
             return (
                 <div className="max-w-6xl mx-auto p-4 md:p-8">
@@ -2330,18 +2671,13 @@
                                                 {pageText.importData}
                                             </button>
                                             <button
-                                                onClick={() => { updateMarketPrices(true); setShowSettings(false); }}
-                                                disabled={isUpdatingPrice}
+                                                onClick={() => { updateMarketAndRates({ updateMarket: true, updateRates: true, showToast: true }); setShowSettings(false); }}
+                                                disabled={isUpdatingPrice || isUpdatingRates}
                                                 className="theme-btn-accent w-full text-white px-4 py-2 rounded-lg font-bold text-sm transition-all disabled:opacity-60"
                                             >
-                                                {isUpdatingPrice ? pageText.updating : pageText.updatePrice}
-                                            </button>
-                                            <button
-                                                onClick={() => { refreshCurrencyRates(true); setShowSettings(false); }}
-                                                disabled={isUpdatingRates}
-                                                className="theme-btn-accent w-full text-white px-4 py-2 rounded-lg font-bold text-sm transition-all disabled:opacity-60"
-                                            >
-                                                {isUpdatingRates ? pageText.updating : pageText.updateFx}
+                                                {(isUpdatingPrice || isUpdatingRates)
+                                                    ? pageText.updating
+                                                    : tByLang('更新行情與匯率', 'Update Prices & FX', '相場と為替を更新')}
                                             </button>
                                             <button
                                                 onClick={() => { handleShareApp(); setShowSettings(false); }}
@@ -2398,12 +2734,12 @@
                                                 className="w-full text-left rounded-xl p-2 transition-all theme-mix-item"
                                                 style={selectedMixCategory === item.categoryKey ? selectedMixItemStyle : undefined}
                                             >
-                                                <div className="flex justify-between text-xs font-black theme-text-sub mb-1">
-                                                    <span>{item.label}</span>
+                                                <div className="flex justify-between items-center text-xs font-black theme-text-sub">
+                                                    <span className="flex items-center gap-2">
+                                                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.hex }}></span>
+                                                        <span>{item.label}</span>
+                                                    </span>
                                                     <span>{item.ratio.toFixed(1)}% · {formatAmount(item.amount)} {displayCurrency}</span>
-                                                </div>
-                                                <div className="h-2 rounded-full theme-bar-bg overflow-hidden">
-                                                    <div className="h-full" style={{ width: `${item.ratio}%`, backgroundColor: item.hex }}></div>
                                                 </div>
                                             </button>
                                         ))}
@@ -2643,6 +2979,10 @@
                             CASHFLOW_INPUT_FOCUS_CLASS={CASHFLOW_INPUT_FOCUS_CLASS}
                             cashflowForm={cashflowForm}
                             updateCashflowField={updateCashflowField}
+                            toggleCashflowOneTimeDate={toggleCashflowOneTimeDate}
+                            updateCashflowOneTimeMonth={updateCashflowOneTimeMonth}
+                            applyCashflowOneTimeMonthPreset={applyCashflowOneTimeMonthPreset}
+                            clearCashflowOneTimeDates={clearCashflowOneTimeDates}
                             updateCashflowType={updateCashflowType}
                             updateCashflowTargetLiquidAsset={updateCashflowTargetLiquidAsset}
                             CASHFLOW_TYPES={CASHFLOW_TYPES}
@@ -2653,6 +2993,8 @@
                             isCashflowMonthlyRecurring={isCashflowMonthlyRecurring}
                             CASHFLOW_FREQUENCIES={CASHFLOW_FREQUENCIES}
                             availableCashflowCategories={availableCashflowCategories}
+                            parseDateKey={parseDateKey}
+                            toDateKey={toDateKey}
                         />
 
                         <CashflowOverviewView
@@ -2696,7 +3038,9 @@
                     <div className="mb-6 flex md:flex-wrap items-center gap-2 overflow-x-auto -mx-2 px-2">
                         <button
                             onClick={() => setSelectedCategories(CATEGORY_KEYS)}
-                            className={`px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap shrink-0 ${selectedCategories.length === CATEGORY_KEYS.length ? 'theme-chip-active shadow-md' : 'theme-chip-inactive'}`}
+                            className="category-filter-chip px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap shrink-0"
+                            data-active={selectedCategories.length === CATEGORY_KEYS.length ? 'true' : 'false'}
+                            style={buildCategoryChipStyle(getThemeTokenByTheme('--primary', '#8B5CF6'), selectedCategories.length === CATEGORY_KEYS.length)}
                         >
                             全部項目
                         </button>
@@ -2704,9 +3048,11 @@
                             <button
                                 key={categoryKey}
                                 onClick={() => toggleCategory(categoryKey)}
-                                className={`px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap shrink-0 ${selectedCategories.includes(categoryKey) ? 'theme-chip-active shadow-md' : 'theme-chip-inactive'}`}
+                                className="category-filter-chip px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap shrink-0"
+                                data-active={selectedCategories.includes(categoryKey) ? 'true' : 'false'}
+                                style={buildCategoryChipStyle(categoryMixHexByKey[categoryKey], selectedCategories.includes(categoryKey))}
                             >
-                                {CATEGORIES[categoryKey].label}
+                                <span>{CATEGORIES[categoryKey].label}</span>
                             </button>
                         ))}
                         <select
@@ -2741,10 +3087,10 @@
                                     <section key={catKey} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                                         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                                             <div className="flex items-center gap-2">
-                                                <div className={`w-1.5 h-6 rounded-full ${CATEGORIES[catKey].color.replace('text', 'bg')}`}></div>
+                                                <div className="w-1.5 h-6 rounded-full" style={{ backgroundColor: categoryMixHexByKey[catKey] }}></div>
                                                 <h2 className="text-base font-black text-slate-800">{CATEGORIES[catKey].label}</h2>
                                             </div>
-                                            <div className={`text-sm font-black ${isLiabilityCategory ? 'text-rose-500' : 'text-slate-700'}`}>
+                                            <div className={`text-sm font-black ${isLiabilityCategory ? 'text-rose-500' : 'text-emerald-600'}`}>
                                                 {isLiabilityCategory ? '-' : ''}{formatAmount(Math.abs(categoryTotalDisplay))} {displayCurrency}
                                             </div>
                                         </div>
@@ -2755,7 +3101,7 @@
                                                 return (
                                                     <div key={accountName} className="px-6 py-3 flex items-center justify-between">
                                                         <div className="text-sm font-bold text-slate-700">{accountName}</div>
-                                                        <div className={`text-sm font-black ${isLiabilityCategory ? 'text-rose-500' : 'text-slate-700'}`}>
+                                                        <div className={`text-sm font-black ${isLiabilityCategory ? 'text-rose-500' : 'text-emerald-600'}`}>
                                                             {isLiabilityCategory ? '-' : ''}{formatAmount(Math.abs(accountTotalDisplay))} {displayCurrency}
                                                         </div>
                                                     </div>
@@ -2771,7 +3117,7 @@
                             {groupedAssets.map(({ categoryKey: catKey, accounts }) => (
                                 <div key={catKey} className="space-y-4">
                                     <div className="flex items-center gap-2 px-2">
-                                        <div className={`w-1.5 h-6 rounded-full ${CATEGORIES[catKey].color.replace('text', 'bg')}`}></div>
+                                        <div className="w-1.5 h-6 rounded-full" style={{ backgroundColor: categoryMixHexByKey[catKey] }}></div>
                                         <h2 className="text-lg font-black text-slate-800">{CATEGORIES[catKey].label}</h2>
                                     </div>
 
@@ -2798,7 +3144,7 @@
                                                 <div className="text-right flex items-center gap-3">
                                                     <div>
                                                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">帳戶匯總</div>
-                                                    <div className={`text-sm font-black ${isLiabilityCategory ? 'text-rose-500' : 'text-slate-700'}`}>
+                                                    <div className={`text-sm font-black ${isLiabilityCategory ? 'text-rose-500' : 'text-emerald-600'}`}>
                                                         {isLiabilityCategory ? '-' : ''}{formatAmount(Math.abs(accountTotalDisplay))} {displayCurrency}
                                                     </div>
                                                     </div>
@@ -2818,7 +3164,7 @@
                                                         const isReceivableItem = isReceivableCategory;
                                                         const isFixedItem = isFixedCategory;
                                                         const amountPrefix = isLiabilityCategory ? '-' : '';
-                                                        const highlightClass = isLiabilityCategory ? 'text-rose-500' : 'text-slate-800';
+                                                        const highlightClass = isLiabilityCategory ? 'text-rose-500' : 'text-emerald-600';
 
                                                         return (
                                                             <div key={item.id} onClick={() => openEdit(item)} className="rounded-xl border border-slate-100 bg-white shadow-sm p-4 space-y-2">
