@@ -25,6 +25,12 @@
     <script src="./cashflow-form.js"></script>
     <script src="./asset-actions.js"></script>
     <script type="text/babel" src="./date-picker-view.js"></script>
+    <script type="text/babel" src="./app-header-view.js"></script>
+    <script type="text/babel" src="./app-footer-view.js"></script>
+    <script type="text/babel" src="./overview-section-view.js"></script>
+    <script type="text/babel" src="./finance-section-view.js"></script>
+    <script type="text/babel" src="./asset-filter-bar-view.js"></script>
+    <script type="text/babel" src="./cashflow-modal-view.js"></script>
     <script type="text/babel" src="./cashflow-form-view.js"></script>
     <script type="text/babel" src="./cashflow-overview-view.js"></script>
     <script type="text/babel" src="./cashflow-rules-view.js"></script>
@@ -471,6 +477,48 @@
         } = window.APP_CASHFLOW_FORM_VIEW || {};
         if (!CashflowRuleForm) {
             throw new Error('cashflow-form-view.js is missing or incomplete.');
+        }
+
+        const {
+            CashflowModalView
+        } = window.APP_CASHFLOW_MODAL_VIEW || {};
+        if (!CashflowModalView) {
+            throw new Error('cashflow-modal-view.js is missing or incomplete.');
+        }
+
+        const {
+            AppHeaderView
+        } = window.APP_HEADER_VIEW || {};
+        if (!AppHeaderView) {
+            throw new Error('app-header-view.js is missing or incomplete.');
+        }
+
+        const {
+            AppFooterView
+        } = window.APP_FOOTER_VIEW || {};
+        if (!AppFooterView) {
+            throw new Error('app-footer-view.js is missing or incomplete.');
+        }
+
+        const {
+            OverviewSectionView
+        } = window.APP_OVERVIEW_SECTION_VIEW || {};
+        if (!OverviewSectionView) {
+            throw new Error('overview-section-view.js is missing or incomplete.');
+        }
+
+        const {
+            FinanceSectionView
+        } = window.APP_FINANCE_SECTION_VIEW || {};
+        if (!FinanceSectionView) {
+            throw new Error('finance-section-view.js is missing or incomplete.');
+        }
+
+        const {
+            AssetFilterBarView
+        } = window.APP_ASSET_FILTER_BAR_VIEW || {};
+        if (!AssetFilterBarView) {
+            throw new Error('asset-filter-bar-view.js is missing or incomplete.');
         }
 
         const {
@@ -2858,509 +2906,140 @@
 
             return (
                 <div className="max-w-6xl mx-auto p-4 md:p-8">
-                    <header className="mb-6">
-                        <div className="theme-header-card rounded-2xl p-4 md:p-5 shadow-sm">
-                            <div className="flex items-start gap-3">
-                                <div className="theme-crown w-11 h-11 rounded-xl flex items-center justify-center text-white shadow-sm">
-                                    <i data-lucide="crown" className="w-6 h-6"></i>
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <h1 className="theme-text-main text-2xl font-black tracking-tight">{appName}</h1>
-                                    <p className="theme-text-sub text-xs font-bold mt-1">{pageText.subtitle}</p>
-                                </div>
-                            </div>
+                    <AppHeaderView
+                        pageText={pageText}
+                        tByLang={tByLang}
+                        appName={appName}
+                        currentHeaderSlogan={currentHeaderSlogan}
+                        importInputRef={importInputRef}
+                        handleImportData={handleImportData}
+                        setEditingId={setEditingId}
+                        setIsModalOpen={setIsModalOpen}
+                        startNewCashflowEntry={startNewCashflowEntry}
+                        showSettings={showSettings}
+                        setShowSettings={setShowSettings}
+                        authUser={authUser}
+                        handleGoogleLogout={handleGoogleLogout}
+                        handleGoogleLogin={handleGoogleLogin}
+                        isAuthLoading={isAuthLoading}
+                        isCloudSyncing={isCloudSyncing}
+                        handleCloudDownload={handleCloudDownload}
+                        handleCloudUpload={handleCloudUpload}
+                        displayCurrency={displayCurrency}
+                        setDisplayCurrency={setDisplayCurrency}
+                        markRecentCurrency={markRecentCurrency}
+                        orderedCurrencies={orderedCurrencies}
+                        pageLanguage={pageLanguage}
+                        setPageLanguage={setPageLanguage}
+                        PAGE_LANGUAGE_OPTIONS={PAGE_LANGUAGE_OPTIONS}
+                        themeId={themeId}
+                        setThemeId={setThemeId}
+                        themeOptions={themeOptions}
+                        handleExportData={handleExportData}
+                        openImportPicker={openImportPicker}
+                        resetToSeed={resetToSeed}
+                        updateMarketAndRates={updateMarketAndRates}
+                        isUpdatingPrice={isUpdatingPrice}
+                        isUpdatingRates={isUpdatingRates}
+                        handleShareApp={handleShareApp}
+                        isGeneratingPdf={isGeneratingPdf}
+                        priceStatus={priceStatus}
+                        lastPriceUpdate={lastPriceUpdate}
+                        lastRateUpdate={lastRateUpdate}
+                        cloudStatus={cloudStatus}
+                        formatDateTime={formatDateTime}
+                    />
 
-                            <div className="theme-subcard mt-3 rounded-xl px-3 py-3 flex items-center gap-3">
-                                <div className="theme-crown w-9 h-9 rounded-xl flex items-center justify-center text-lg prince-float">🤴</div>
-                                <div className="min-w-0">
-                                    <div className="theme-text-sub text-xs font-black prince-talk">{currentHeaderSlogan}</div>
-                                </div>
-                            </div>
+                    <OverviewSectionView
+                        pageText={pageText}
+                        displayCurrency={displayCurrency}
+                        netWorthCardStyle={netWorthCardStyle}
+                        totalAssetsCardStyle={totalAssetsCardStyle}
+                        totalLiabilitiesCardStyle={totalLiabilitiesCardStyle}
+                        totals={totals}
+                        formatAmount={formatAmount}
+                        netWorthTier={netWorthTier}
+                        overviewPanelCardStyle={overviewPanelCardStyle}
+                        assetMix={assetMix}
+                        selectedMixCategory={selectedMixCategory}
+                        setSelectedMixCategory={setSelectedMixCategory}
+                        selectedMixItemStyle={selectedMixItemStyle}
+                        detailMix={detailMix}
+                        detailDonutCenterCardStyle={detailDonutCenterCardStyle}
+                    />
 
-                            <input
-                                ref={importInputRef}
-                                type="file"
-                                accept="application/json,.json"
-                                className="hidden"
-                                onChange={handleImportData}
-                            />
-                            <div className="mt-4 pt-3 border-t border-white/70 flex flex-wrap items-center gap-2">
-                                <button onClick={() => { setEditingId(null); setIsModalOpen(true); }} className="bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-slate-800 transition-all shadow-md flex items-center gap-2">
-                                    <i data-lucide="plus-circle" className="w-4 h-4"></i> {pageText.addAsset}
-                                </button>
-                                <button
-                                    onClick={startNewCashflowEntry}
-                                    className="theme-btn-accent text-white px-4 py-2 rounded-lg font-bold text-sm transition-all shadow-md flex items-center gap-2"
-                                >
-                                    <i data-lucide="plus-circle" className="w-4 h-4"></i>
-                                    {tByLang('新增現金流', 'Add Cashflow', 'キャッシュフローを追加')}
-                                </button>
+                    <FinanceSectionView
+                        financeSectionTab={financeSectionTab}
+                        setFinanceSectionTab={setFinanceSectionTab}
+                        pageText={pageText}
+                        selectedStatsCategory={selectedStatsCategory}
+                        setSelectedStatsCategory={setSelectedStatsCategory}
+                        setSelectedStatsAccount={setSelectedStatsAccount}
+                        setSelectedStatsSegmentKey={setSelectedStatsSegmentKey}
+                        CATEGORY_KEYS={CATEGORY_KEYS}
+                        translate={translate}
+                        CATEGORIES={CATEGORIES}
+                        statsBreakdownMode={statsBreakdownMode}
+                        setStatsBreakdownMode={setStatsBreakdownMode}
+                        accountStats={accountStats}
+                        tByLang={tByLang}
+                        accountChartCenterStyle={accountChartCenterStyle}
+                        describeArc={describeArc}
+                        selectedMixItemStyle={selectedMixItemStyle}
+                        overviewPanelCardStyle={overviewPanelCardStyle}
+                        formatAmount={formatAmount}
+                        displayCurrency={displayCurrency}
+                        MonthPicker={MonthPicker}
+                        selectedCashflowMonth={selectedCashflowMonth}
+                        setSelectedCashflowMonth={setSelectedCashflowMonth}
+                        toMonthKey={toMonthKey}
+                        pageLanguage={pageLanguage}
+                        moveCashflowMonth={moveCashflowMonth}
+                        CashflowOverviewView={CashflowOverviewView}
+                        cashflowMonthData={cashflowMonthData}
+                        cashflowYearData={cashflowYearData}
+                        cashflowView={cashflowView}
+                        setCashflowView={setCashflowView}
+                        WEEKDAY_LABELS={WEEKDAY_LABELS}
+                        CashflowRulesView={CashflowRulesView}
+                        cashflowEntries={cashflowEntries}
+                        filteredCashflowEntries={filteredCashflowEntries}
+                        cashflowRuleKeyword={cashflowRuleKeyword}
+                        setCashflowRuleKeyword={setCashflowRuleKeyword}
+                        cashflowRuleFilter={cashflowRuleFilter}
+                        setCashflowRuleFilter={setCashflowRuleFilter}
+                        cashflowRuleSortMode={cashflowRuleSortMode}
+                        setCashflowRuleSortMode={setCashflowRuleSortMode}
+                        editingCashflowId={editingCashflowId}
+                        cancelCashflowEdit={cancelCashflowEdit}
+                        setCashflowRulesVisibleCount={setCashflowRulesVisibleCount}
+                        cashflowRulesVisibleCount={cashflowRulesVisibleCount}
+                        CASHFLOW_TYPES={CASHFLOW_TYPES}
+                        CASHFLOW_FREQUENCIES={CASHFLOW_FREQUENCIES}
+                        liquidAssetLabelById={liquidAssetLabelById}
+                        cashflowTriggerInfoById={cashflowTriggerInfoById}
+                        fromHKD={fromHKD}
+                        toHKD={toHKD}
+                        startEditCashflowEntry={startEditCashflowEntry}
+                        handleDeleteCashflowEntry={handleDeleteCashflowEntry}
+                    />
 
-                                <div className="relative ml-auto">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowSettings(prev => !prev)}
-                                        className="bg-white border border-slate-200 rounded-lg px-3 py-2 font-black text-sm shadow-sm flex items-center gap-2"
-                                    >
-                                        <i data-lucide="settings" className="w-4 h-4"></i>
-                                        {pageText.advanced}
-                                    </button>
-                                    {showSettings && (
-                                        <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-100 rounded-xl shadow-lg p-3 space-y-2 z-20">
-                                            <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{pageText.cloudAccount}</div>
-                                            <div className="text-xs font-bold text-slate-600 bg-slate-50 rounded-lg px-2 py-1">
-                                                {authUser ? (authUser.email || '已登入 Google') : '未登入 Google'}
-                                            </div>
-                                            <button
-                                                onClick={() => {
-                                                    if (authUser) handleGoogleLogout();
-                                                    else handleGoogleLogin();
-                                                    setShowSettings(false);
-                                                }}
-                                                disabled={isAuthLoading || isCloudSyncing}
-                                                className="w-full bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-slate-800 transition-all disabled:opacity-60"
-                                            >
-                                                {isAuthLoading ? pageText.loginLoading : authUser ? pageText.logout : pageText.login}
-                                            </button>
-                                            <button
-                                                onClick={() => { handleCloudDownload(); setShowSettings(false); }}
-                                                disabled={!authUser || isAuthLoading || isCloudSyncing}
-                                                className="theme-btn-accent w-full text-white px-4 py-2 rounded-lg font-bold text-sm transition-all disabled:opacity-60"
-                                            >
-                                                {isCloudSyncing
-                                                    ? tByLang('同步中...', 'Syncing...', '同期中...')
-                                                    : tByLang('下載雲端資料', 'Download Cloud Data', 'クラウドデータをダウンロード')}
-                                            </button>
-                                            <button
-                                                onClick={() => { handleCloudUpload(); setShowSettings(false); }}
-                                                disabled={!authUser || isAuthLoading || isCloudSyncing}
-                                                className="theme-btn-accent w-full text-white px-4 py-2 rounded-lg font-bold text-sm transition-all disabled:opacity-60"
-                                            >
-                                                {isCloudSyncing
-                                                    ? tByLang('同步中...', 'Syncing...', '同期中...')
-                                                    : tByLang('上載本機資料', 'Upload Local Data', 'ローカルデータをアップロード')}
-                                            </button>
-                                            <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{pageText.displayCurrency}</div>
-                                            <select
-                                                value={displayCurrency}
-                                                onChange={e => {
-                                                    const next = e.target.value;
-                                                    setDisplayCurrency(next);
-                                                    markRecentCurrency(next);
-                                                }}
-                                                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 font-bold text-sm shadow-sm outline-none"
-                                            >
-                                                {orderedCurrencies.map(c => <option key={c} value={c}>{c}</option>)}
-                                            </select>
-                                            <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{pageText.pageLanguage}</div>
-                                            <select
-                                                value={pageLanguage}
-                                                onChange={e => setPageLanguage(e.target.value)}
-                                                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 font-bold text-sm shadow-sm outline-none"
-                                            >
-                                                {PAGE_LANGUAGE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                                            </select>
-                                            <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{pageText.theme}</div>
-                                            <select
-                                                value={themeId}
-                                                onChange={e => setThemeId(e.target.value)}
-                                                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 font-bold text-sm shadow-sm outline-none"
-                                            >
-                                                {themeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                                            </select>
-                                            <button
-                                                onClick={() => { handleExportData(); setShowSettings(false); }}
-                                                className="theme-btn-gold w-full text-white px-4 py-2 rounded-lg font-bold text-sm transition-all"
-                                            >
-                                                {pageText.exportData}
-                                            </button>
-                                            <button
-                                                onClick={() => { openImportPicker(); setShowSettings(false); }}
-                                                className="w-full theme-tab-inactive px-4 py-2 rounded-lg font-bold text-sm transition-all"
-                                            >
-                                                {pageText.importData}
-                                            </button>
-                                            <button
-                                                onClick={() => { resetToSeed(); setShowSettings(false); }}
-                                                title={tByLang('可愛重設：清空目前資料並回到範例帳本', 'Cute reset: clear current data and restore sample ledger', 'かわいくリセット：現在のデータを消去してサンプル台帳に戻します')}
-                                                className="theme-btn-danger w-full text-white px-4 py-2 rounded-lg font-bold text-sm transition-all"
-                                            >
-                                                {pageText.resetData}
-                                            </button>
-                                            <button
-                                                onClick={() => { updateMarketAndRates({ updateMarket: true, updateRates: true, showToast: true }); setShowSettings(false); }}
-                                                disabled={isUpdatingPrice || isUpdatingRates}
-                                                className="theme-btn-accent w-full text-white px-4 py-2 rounded-lg font-bold text-sm transition-all disabled:opacity-60"
-                                            >
-                                                {(isUpdatingPrice || isUpdatingRates)
-                                                    ? pageText.updating
-                                                    : tByLang('更新行情與匯率', 'Update Prices & FX', '相場と為替を更新')}
-                                            </button>
-                                            <button
-                                                onClick={() => { handleShareApp(); setShowSettings(false); }}
-                                                disabled={isGeneratingPdf}
-                                                className="w-full theme-btn-primary text-white px-4 py-2 rounded-lg font-bold text-sm transition-all disabled:opacity-60"
-                                            >
-                                                {isGeneratingPdf ? pageText.generatingPdf : pageText.sharePdf}
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </header>
-
-                    <div className="mb-8 text-xs theme-text-sub font-bold flex flex-wrap gap-x-4 gap-y-1">
-                        <span>{priceStatus || pageText.marketAutoUpdate}</span>
-                        <span>{lastPriceUpdate ? `${pageText.lastUpdated}：${formatDateTime(lastPriceUpdate)}` : pageText.noPriceYet}</span>
-                        <span>{lastRateUpdate ? `${pageText.rateUpdated}：${formatDateTime(lastRateUpdate)}` : pageText.fxDefault}</span>
-                        <span>{isCloudSyncing ? pageText.cloudSyncing : cloudStatus}</span>
-                    </div>
-
-                    <section className="theme-surface p-4 sm:p-6 rounded-2xl shadow-sm mb-8">
-                        <div className="theme-text-main font-black mb-4">{pageText.overviewTitle}</div>
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <div className="space-y-4">
-                                <div className="theme-networth-card p-5 rounded-2xl text-white shadow-lg" style={netWorthCardStyle}>
-                                    <div className="theme-networth-caption text-[10px] font-black uppercase tracking-widest mb-1">{pageText.netWorth} ({displayCurrency})</div>
-                                    <div className="text-3xl font-black tracking-tighter">{formatAmount(totals.netWorth)}</div>
-                                    <div className="text-xs font-black theme-networth-caption mt-2">{netWorthTier.emoji} {netWorthTier.label}</div>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
-                                    <div className="theme-summary-card p-4 rounded-xl" style={totalAssetsCardStyle}>
-                                        <div className="theme-text-sub text-[10px] font-black uppercase tracking-widest mb-1">{pageText.totalAssets}</div>
-                                        <div className="text-xl font-black theme-text-main">{formatAmount(totals.assets)}</div>
-                                    </div>
-                                    <div className="theme-summary-card p-4 rounded-xl" style={totalLiabilitiesCardStyle}>
-                                        <div className="theme-text-sub text-[10px] font-black uppercase tracking-widest mb-1">{pageText.totalLiabilities}</div>
-                                        <div className="text-xl font-black theme-negative">{formatAmount(totals.liabilities)}</div>
-                                        <div className="text-[10px] font-black theme-text-sub mt-1">{pageText.debtRatio} {totals.debtRatio.toFixed(1)}%</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="lg:col-span-2 grid grid-cols-1 xl:grid-cols-2 gap-6 items-center">
-                                <details className="rounded-xl p-3 theme-summary-card" style={overviewPanelCardStyle} open>
-                                    <summary className="sm:hidden text-xs font-black theme-text-sub cursor-pointer list-none">{pageText.categoryMix}</summary>
-                                    <div className="space-y-3 mt-3 sm:mt-0">
-                                        {assetMix.rows.map(item => (
-                                            <button
-                                                type="button"
-                                                key={item.categoryKey}
-                                                onClick={() => setSelectedMixCategory(item.categoryKey)}
-                                                className="w-full text-left rounded-xl p-2 transition-all theme-mix-item"
-                                                style={selectedMixCategory === item.categoryKey ? selectedMixItemStyle : undefined}
-                                            >
-                                                <div className="flex justify-between items-center text-xs font-black theme-text-sub">
-                                                    <span className="flex items-center gap-2">
-                                                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.hex }}></span>
-                                                        <span>{item.label}</span>
-                                                    </span>
-                                                    <span>{item.ratio.toFixed(1)}% · {formatAmount(item.amount)} {displayCurrency}</span>
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </details>
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-center">
-                                        <div className="w-44 h-44 sm:w-52 sm:h-52 rounded-full relative" style={{ background: detailMix.gradient }}>
-                                            <div className="absolute inset-8 rounded-full flex items-center justify-center theme-summary-card" style={detailDonutCenterCardStyle}>
-                                                <div className="text-center">
-                                                    <div className="text-[10px] theme-text-sub font-black uppercase tracking-widest">{detailMix.categoryLabel}</div>
-                                                    <div className="text-sm font-black theme-text-main">{pageText.detailMix}</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <details className="rounded-xl p-3 theme-summary-card" style={overviewPanelCardStyle} open>
-                                        <summary className="sm:hidden text-xs font-black theme-text-sub cursor-pointer list-none">{pageText.detailMix}</summary>
-                                        <div className="space-y-2 mt-3 sm:mt-0">
-                                            {detailMix.rows.length ? detailMix.rows.map(row => (
-                                                <div key={row.label} className="flex items-center justify-between text-xs font-black theme-text-sub">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: row.color }}></span>
-                                                        <span>{row.label}</span>
-                                                    </div>
-                                                    <span>{row.ratio.toFixed(1)}% · {formatAmount(row.amount)} {displayCurrency}</span>
-                                                </div>
-                                            )) : (
-                                                <p className="text-sm theme-text-sub font-bold text-center">{pageText.noDetailItems}</p>
-                                            )}
-                                        </div>
-                                    </details>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <div className="mb-4 flex items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={() => setFinanceSectionTab('ASSET_ACCOUNT')}
-                            className={`px-4 py-2 rounded-lg text-sm font-black ${financeSectionTab === 'ASSET_ACCOUNT' ? 'theme-tab-active' : 'theme-tab-inactive'}`}
-                        >
-                            {pageText.tabAssetAccount}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setFinanceSectionTab('CASHFLOW')}
-                            className={`px-4 py-2 rounded-lg text-sm font-black ${financeSectionTab === 'CASHFLOW' ? 'theme-tab-active' : 'theme-tab-inactive'}`}
-                        >
-                            {pageText.tabCashflow}
-                        </button>
-                    </div>
-
-                    {financeSectionTab === 'ASSET_ACCOUNT' && (
-                    <section className="theme-surface p-4 sm:p-6 rounded-2xl shadow-sm mb-8">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                            <div className="theme-text-main font-black">{pageText.tabAssetAccount}</div>
-                            <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2">
-                                <select
-                                    value={selectedStatsCategory}
-                                    onChange={e => {
-                                        setSelectedStatsCategory(e.target.value);
-                                        setSelectedStatsAccount('');
-                                        setSelectedStatsSegmentKey('');
-                                    }}
-                                    className="theme-input rounded-lg px-3 py-2 font-bold text-sm shadow-sm outline-none w-full sm:w-auto"
-                                >
-                                    {CATEGORY_KEYS.map(categoryKey => <option key={categoryKey} value={categoryKey}>{translate(CATEGORIES[categoryKey].label)}</option>)}
-                                </select>
-                                <select
-                                    value={statsBreakdownMode}
-                                    onChange={e => {
-                                        setStatsBreakdownMode(e.target.value);
-                                        setSelectedStatsSegmentKey('');
-                                    }}
-                                    className="theme-input rounded-lg px-3 py-2 font-bold text-sm shadow-sm outline-none w-full sm:w-auto"
-                                >
-                                    <option value="ACCOUNT">{tByLang('按帳戶佔比', 'By Account Share', '口座別比率')}</option>
-                                    <option value="ITEM">{tByLang('按帳戶內細項', 'By Account Item Share', '口座内項目別比率')}</option>
-                                </select>
-                                {statsBreakdownMode === 'ITEM' && (
-                                    <select
-                                        value={accountStats.currentAccount}
-                                        onChange={e => {
-                                            setSelectedStatsAccount(e.target.value);
-                                            setSelectedStatsSegmentKey('');
-                                        }}
-                                        className="theme-input rounded-lg px-3 py-2 font-bold text-sm shadow-sm outline-none w-full sm:w-auto"
-                                    >
-                                        {accountStats.accountNames.length ? (
-                                            accountStats.accountNames.map(account => <option key={account} value={account}>{account}</option>)
-                                        ) : (
-                                            <option value="">{tByLang('尚無帳戶', 'No accounts yet', '口座がありません')}</option>
-                                        )}
-                                    </select>
-                                )}
-                            </div>
-                        </div>
-
-                        {!accountStats.accountNames.length ? (
-                            <p className="text-sm theme-text-sub font-bold">{tByLang('目前此類別沒有可統計資料', 'No data for this category yet', 'このカテゴリに集計データがありません')}</p>
-                        ) : (
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-                                <div className="flex justify-center">
-                                    <svg viewBox="0 0 260 260" className="w-48 h-48 sm:w-56 sm:h-56">
-                                        {accountStats.segments.length === 1 ? (
-                                            <circle
-                                                cx="130"
-                                                cy="130"
-                                                r="110"
-                                                fill={accountStats.segments[0].color}
-                                                stroke={accountChartCenterStyle.ringStroke}
-                                                strokeWidth="2"
-                                                className="cursor-pointer"
-                                                onClick={() => setSelectedStatsSegmentKey(accountStats.segments[0].key)}
-                                            />
-                                        ) : (
-                                            accountStats.segments.map(segment => (
-                                                <path
-                                                    key={segment.key}
-                                                    d={describeArc(130, 130, 110, segment.startAngle, segment.endAngle)}
-                                                    fill={segment.color}
-                                                    stroke={accountChartCenterStyle.ringStroke}
-                                                    strokeWidth="2"
-                                                    className="cursor-pointer"
-                                                    opacity={accountStats.selectedItem?.key === segment.key ? 1 : 0.8}
-                                                    onClick={() => setSelectedStatsSegmentKey(segment.key)}
-                                                />
-                                            ))
-                                        )}
-                                        <circle cx="130" cy="130" r="62" fill={accountChartCenterStyle.holeFill} />
-                                        <text x="130" y="116" textAnchor="middle" style={{ fontSize: '10px', fontWeight: 800, fill: accountChartCenterStyle.labelFill }}>
-                                            {accountStats.selectedItem ? accountStats.selectedItem.label : (statsBreakdownMode === 'ACCOUNT' ? translate(CATEGORIES[selectedStatsCategory].label) : accountStats.currentAccount)}
-                                        </text>
-                                        <text x="130" y="136" textAnchor="middle" style={{ fontSize: '13px', fontWeight: 900, fill: accountChartCenterStyle.valueFill }}>
-                                            {accountStats.selectedItem ? `${formatAmount(accountStats.selectedItem.valueDisplay)} ${displayCurrency}` : `${formatAmount(accountStats.total)} ${displayCurrency}`}
-                                        </text>
-                                        <text x="130" y="154" textAnchor="middle" style={{ fontSize: '10px', fontWeight: 800, fill: accountChartCenterStyle.hintFill }}>
-                                            {accountStats.selectedItem ? `${accountStats.selectedItem.ratio.toFixed(1)}%` : tByLang('點擊區塊查看佔比', 'Click a segment to view ratio', 'セグメントをクリックして比率を表示')}
-                                        </text>
-                                    </svg>
-                                </div>
-
-                                <div className="lg:col-span-2 space-y-3">
-                                    <div className="space-y-2">
-                                        {accountStats.segments.map(segment => (
-                                            <button
-                                                key={segment.key}
-                                                type="button"
-                                                onClick={() => setSelectedStatsSegmentKey(segment.key)}
-                                                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all ${accountStats.selectedItem?.key === segment.key ? 'theme-mix-item' : 'theme-surface theme-mix-item'}`}
-                                                style={accountStats.selectedItem?.key === segment.key ? selectedMixItemStyle : undefined}
-                                            >
-                                                <div className="flex items-center gap-2 min-w-0">
-                                                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: segment.color }}></span>
-                                                    <span className="text-sm font-bold theme-text-main truncate">{segment.label}</span>
-                                                    <span className="text-[10px] theme-text-sub font-black">{segment.symbol ? `(${segment.symbol})` : ''}</span>
-                                                </div>
-                                                <div className="text-xs font-black theme-text-sub whitespace-nowrap text-right">
-                                                    <div>{formatAmount(segment.valueDisplay)} {displayCurrency}</div>
-                                                    <div>{segment.ratio.toFixed(1)}%</div>
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-
-                                    {accountStats.selectedItem && (
-                                        <details className="rounded-xl p-4 theme-summary-card" style={overviewPanelCardStyle} open>
-                                            <summary className="md:hidden text-xs theme-text-sub font-black cursor-pointer list-none">{tByLang('已選擇項目細節', 'Selected Item Details', '選択中の項目詳細')}</summary>
-                                            <div className="mt-3 md:mt-0">
-                                                <div className="text-xs theme-text-sub font-black mb-2">{tByLang('已選擇項目', 'Selected Item', '選択中の項目')}</div>
-                                                <div className="text-base font-black theme-text-main mb-1">{accountStats.selectedItem.label}</div>
-                                                <div className="text-xs theme-text-sub font-bold mb-2">
-                                                    {statsBreakdownMode === 'ACCOUNT'
-                                                        ? tByLang(
-                                                            `帳戶資產項目：${accountStats.selectedItem.members?.length || 0} 筆`,
-                                                            `Account Asset Items: ${accountStats.selectedItem.members?.length || 0}`,
-                                                            `口座資産項目：${accountStats.selectedItem.members?.length || 0}件`
-                                                        )
-                                                        : (accountStats.selectedItem.subtype || translate(CATEGORIES[selectedStatsCategory].label))}
-                                                    {accountStats.selectedItem.symbol ? ` · ${accountStats.selectedItem.symbol}` : ''}
-                                                </div>
-                                                <div className="text-sm font-bold theme-text-main">{tByLang('名稱：', 'Name:', '名称：')}{accountStats.selectedItem.label}</div>
-                                                <div className="text-sm font-bold theme-text-main">{tByLang('金額：', 'Amount:', '金額：')}{formatAmount(accountStats.selectedItem.valueDisplay)} {displayCurrency}</div>
-                                                <div className="text-sm font-bold theme-text-main">{tByLang('百分比：', 'Ratio:', '比率：')}{accountStats.selectedItem.ratio.toFixed(2)}%</div>
-                                            </div>
-                                        </details>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </section>
-                    )}
-
-                    {financeSectionTab === 'CASHFLOW' && (
-                    <section className="theme-surface p-4 sm:p-6 rounded-2xl shadow-sm mb-8">
-                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
-                            <div>
-                                <div className="text-slate-800 font-black">{pageText.tabCashflow}</div>
-                                <p className="text-xs text-slate-400 font-bold mt-1">{pageText.cashflowDesc}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => moveCashflowMonth(-1)}
-                                    className="px-3 py-2 rounded-lg text-xs font-black theme-tab-inactive"
-                                >
-                                    {pageText.prevMonth}
-                                </button>
-                                <MonthPicker
-                                    value={selectedCashflowMonth}
-                                    onChange={e => setSelectedCashflowMonth(e.target.value || toMonthKey(new Date()))}
-                                    className="px-3 py-2 rounded-lg text-xs font-black theme-input outline-none"
-                                    pageLanguage={pageLanguage}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => moveCashflowMonth(1)}
-                                    className="px-3 py-2 rounded-lg text-xs font-black theme-tab-inactive"
-                                >
-                                    {pageText.nextMonth}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col gap-5">
-                        <CashflowOverviewView
-                            cashflowMonthData={cashflowMonthData}
-                            cashflowYearData={cashflowYearData}
-                            displayCurrency={displayCurrency}
-                            formatAmount={formatAmount}
-                            cashflowView={cashflowView}
-                            setCashflowView={setCashflowView}
-                            WEEKDAY_LABELS={WEEKDAY_LABELS}
-                            pageLanguage={pageLanguage}
-                        />
-
-                        <CashflowRulesView
-                            cashflowEntries={cashflowEntries}
-                            filteredCashflowEntries={filteredCashflowEntries}
-                            cashflowRuleKeyword={cashflowRuleKeyword}
-                            setCashflowRuleKeyword={setCashflowRuleKeyword}
-                            cashflowRuleFilter={cashflowRuleFilter}
-                            setCashflowRuleFilter={setCashflowRuleFilter}
-                            cashflowRuleSortMode={cashflowRuleSortMode}
-                            setCashflowRuleSortMode={setCashflowRuleSortMode}
-                            editingCashflowId={editingCashflowId}
-                            cancelCashflowEdit={cancelCashflowEdit}
-                            setCashflowRulesVisibleCount={setCashflowRulesVisibleCount}
-                            cashflowRulesVisibleCount={cashflowRulesVisibleCount}
-                            CASHFLOW_TYPES={CASHFLOW_TYPES}
-                            CASHFLOW_FREQUENCIES={CASHFLOW_FREQUENCIES}
-                            liquidAssetLabelById={liquidAssetLabelById}
-                            cashflowTriggerInfoById={cashflowTriggerInfoById}
-                            formatAmount={formatAmount}
-                            fromHKD={fromHKD}
-                            toHKD={toHKD}
-                            displayCurrency={displayCurrency}
-                            pageLanguage={pageLanguage}
-                            startEditCashflowEntry={startEditCashflowEntry}
-                            handleDeleteCashflowEntry={handleDeleteCashflowEntry}
-                        />
-                        </div>
-                    </section>
-                    )}
-
-                    <div className="mb-6 flex md:flex-wrap items-center gap-2 overflow-x-auto -mx-2 px-2">
-                        <button
-                            onClick={() => setSelectedCategories(CATEGORY_KEYS)}
-                            className="category-filter-chip px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap shrink-0"
-                            data-active={selectedCategories.length === CATEGORY_KEYS.length ? 'true' : 'false'}
-                            style={buildCategoryChipStyle(getThemeTokenByTheme('--primary', '#8B5CF6'), selectedCategories.length === CATEGORY_KEYS.length)}
-                        >
-                            {tByLang('全部項目', 'All Items', 'すべての項目')}
-                        </button>
-                        {CATEGORY_KEYS.map(categoryKey => (
-                            <button
-                                key={categoryKey}
-                                onClick={() => toggleCategory(categoryKey)}
-                                className="category-filter-chip px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap shrink-0"
-                                data-active={selectedCategories.includes(categoryKey) ? 'true' : 'false'}
-                                style={buildCategoryChipStyle(categoryMixHexByKey[categoryKey], selectedCategories.includes(categoryKey))}
-                            >
-                                <span>{translate(CATEGORIES[categoryKey].label)}</span>
-                            </button>
-                        ))}
-                        <select
-                            value={sortMode}
-                            onChange={e => setSortMode(e.target.value)}
-                            className="theme-input rounded-lg px-3 py-1.5 font-bold text-xs shadow-sm outline-none shrink-0"
-                        >
-                            <option value="AMOUNT_DESC">{tByLang('按金額排序（大到小）', 'Sort by Amount (High to Low)', '金額順（大→小）')}</option>
-                            <option value="NAME_ASC">{tByLang('按名稱排序（A-Z）', 'Sort by Name (A-Z)', '名称順（A-Z）')}</option>
-                        </select>
-                        <select
-                            value={viewMode}
-                            onChange={e => setViewMode(e.target.value)}
-                            className="theme-input rounded-lg px-3 py-1.5 font-bold text-xs shadow-sm outline-none shrink-0"
-                        >
-                            <option value="DETAIL">{tByLang('詳細模式', 'Detail Mode', '詳細モード')}</option>
-                            <option value="SUMMARY">{tByLang('匯總模式', 'Summary Mode', 'サマリーモード')}</option>
-                        </select>
-                    </div>
+                    <AssetFilterBarView
+                        setSelectedCategories={setSelectedCategories}
+                        CATEGORY_KEYS={CATEGORY_KEYS}
+                        selectedCategories={selectedCategories}
+                        buildCategoryChipStyle={buildCategoryChipStyle}
+                        getThemeTokenByTheme={getThemeTokenByTheme}
+                        tByLang={tByLang}
+                        toggleCategory={toggleCategory}
+                        categoryMixHexByKey={categoryMixHexByKey}
+                        translate={translate}
+                        CATEGORIES={CATEGORIES}
+                        sortMode={sortMode}
+                        setSortMode={setSortMode}
+                        viewMode={viewMode}
+                        setViewMode={setViewMode}
+                    />
 
                     {viewMode === 'SUMMARY' ? (
                         <div className="space-y-6">
@@ -3892,72 +3571,40 @@
                         pageLanguage={pageLanguage}
                     />
 
-                    {isCashflowModalOpen && (
-                        <div className="fixed inset-0 z-50 flex items-stretch md:items-center justify-center p-0 md:p-4 modal-overlay">
-                            <div className="theme-modal-shell w-full h-full md:h-auto md:w-[96vw] md:max-w-6xl md:max-h-[90vh] md:rounded-3xl shadow-2xl overflow-hidden">
-                                <div className="theme-modal-header px-5 md:px-8 py-4 md:py-6 flex justify-between items-center sticky top-0 z-10">
-                                    <h3 className="theme-modal-title font-black text-xl">
-                                        {editingCashflowId
-                                            ? tByLang('編輯現金流', 'Edit Cashflow', 'キャッシュフローを編集')
-                                            : tByLang('新增現金流', 'Add Cashflow', 'キャッシュフローを追加')}
-                                    </h3>
-                                    <button
-                                        type="button"
-                                        onClick={() => { setIsCashflowModalOpen(false); setEditingCashflowId(''); }}
-                                        className="theme-modal-close flex items-center justify-center w-9 h-9 text-lg font-black"
-                                        aria-label={tByLang('關閉', 'Close', '閉じる')}
-                                    >
-                                        <span className="leading-none">×</span>
-                                    </button>
-                                </div>
-                                <div className="p-5 md:p-8 h-[calc(100vh-96px)] md:h-auto md:max-h-[calc(90vh-96px)] overflow-y-auto custom-scrollbar">
-                                    <CashflowRuleForm
-                                        cashflowFormRef={cashflowFormRef}
-                                        handleCashflowSubmit={handleCashflowSubmit}
-                                        editingCashflowId={editingCashflowId}
-                                        cashflowEntries={cashflowEntries}
-                                        cashflowAccountOptions={cashflowAccountOptions}
-                                        FIELD_LABEL_CLASS={FIELD_LABEL_CLASS}
-                                        CASHFLOW_INPUT_CLASS={CASHFLOW_INPUT_CLASS}
-                                        CASHFLOW_INPUT_FOCUS_CLASS={CASHFLOW_INPUT_FOCUS_CLASS}
-                                        cashflowForm={cashflowForm}
-                                        updateCashflowField={updateCashflowField}
-                                        toggleCashflowOneTimeDate={toggleCashflowOneTimeDate}
-                                        updateCashflowOneTimeMonth={updateCashflowOneTimeMonth}
-                                        applyCashflowOneTimeMonthPreset={applyCashflowOneTimeMonthPreset}
-                                        clearCashflowOneTimeDates={clearCashflowOneTimeDates}
-                                        updateCashflowType={updateCashflowType}
-                                        updateCashflowTargetLiquidAsset={updateCashflowTargetLiquidAsset}
-                                        CASHFLOW_TYPES={CASHFLOW_TYPES}
-                                        CASHFLOW_SCHEDULE_TYPES={CASHFLOW_SCHEDULE_TYPES}
-                                        liquidAssetOptions={liquidAssetOptions}
-                                        CURRENCIES={orderedCurrencies}
-                                        isCashflowOneTime={isCashflowOneTime}
-                                        isCashflowMonthlyRecurring={isCashflowMonthlyRecurring}
-                                        CASHFLOW_FREQUENCIES={CASHFLOW_FREQUENCIES}
-                                        availableCashflowCategories={availableCashflowCategories}
-                                        parseDateKey={parseDateKey}
-                                        toDateKey={toDateKey}
-                                        pageLanguage={pageLanguage}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                    <CashflowModalView
+                        isOpen={isCashflowModalOpen}
+                        onClose={() => { setIsCashflowModalOpen(false); setEditingCashflowId(''); }}
+                        editingCashflowId={editingCashflowId}
+                        cashflowFormRef={cashflowFormRef}
+                        handleCashflowSubmit={handleCashflowSubmit}
+                        cashflowEntries={cashflowEntries}
+                        cashflowAccountOptions={cashflowAccountOptions}
+                        FIELD_LABEL_CLASS={FIELD_LABEL_CLASS}
+                        CASHFLOW_INPUT_CLASS={CASHFLOW_INPUT_CLASS}
+                        CASHFLOW_INPUT_FOCUS_CLASS={CASHFLOW_INPUT_FOCUS_CLASS}
+                        cashflowForm={cashflowForm}
+                        updateCashflowField={updateCashflowField}
+                        toggleCashflowOneTimeDate={toggleCashflowOneTimeDate}
+                        updateCashflowOneTimeMonth={updateCashflowOneTimeMonth}
+                        applyCashflowOneTimeMonthPreset={applyCashflowOneTimeMonthPreset}
+                        clearCashflowOneTimeDates={clearCashflowOneTimeDates}
+                        updateCashflowType={updateCashflowType}
+                        updateCashflowTargetLiquidAsset={updateCashflowTargetLiquidAsset}
+                        CASHFLOW_TYPES={CASHFLOW_TYPES}
+                        CASHFLOW_SCHEDULE_TYPES={CASHFLOW_SCHEDULE_TYPES}
+                        liquidAssetOptions={liquidAssetOptions}
+                        CURRENCIES={orderedCurrencies}
+                        isCashflowOneTime={isCashflowOneTime}
+                        isCashflowMonthlyRecurring={isCashflowMonthlyRecurring}
+                        CASHFLOW_FREQUENCIES={CASHFLOW_FREQUENCIES}
+                        availableCashflowCategories={availableCashflowCategories}
+                        parseDateKey={parseDateKey}
+                        toDateKey={toDateKey}
+                        pageLanguage={pageLanguage}
+                        CashflowRuleForm={CashflowRuleForm}
+                    />
 
-                    <div className="hidden md:block fixed right-4 bottom-5 z-30 pointer-events-none">
-                        <div className="max-w-[250px] rounded-2xl theme-surface backdrop-blur-sm shadow-lg px-3 py-2 prince-talk">
-                            <div className="text-[11px] leading-5 font-black theme-text-main">{princeHintMessage}</div>
-                        </div>
-                        <div className="mt-2 flex items-end justify-end gap-1">
-                            <div className="text-2xl prince-sparkle">✨</div>
-                            <div className="prince-float w-16 h-16 rounded-2xl theme-prince-avatar shadow-md flex items-center justify-center text-3xl">🤴</div>
-                        </div>
-                    </div>
-
-                    <footer className="mt-20 text-center theme-text-sub text-[10px] font-bold uppercase tracking-[0.22em] pb-10">
-                        {appName}
-                    </footer>
+                    <AppFooterView princeHintMessage={princeHintMessage} appName={appName} />
                 </div>
             );
         }
