@@ -46,15 +46,27 @@
         const translate = (text) => (pageLanguage === 'zh-Hant' ? text : (dictionary[text] || text));
         const tByLang = (zh, en, ja) => (pageLanguage === 'en-US' ? en : (pageLanguage === 'ja-JP' ? ja : zh));
         const formatPeriods = (value) => tByLang(`${value} 期`, `${value} terms`, `${value}期`);
+        const { DatePicker } = window.APP_DATE_PICKER || {};
+        if (!DatePicker) {
+            throw new Error('date-picker-view.js is missing or incomplete.');
+        }
 
         return (
             <div className="fixed inset-0 z-50 flex items-stretch md:items-center justify-center p-0 md:p-4 modal-overlay">
-                <div className="theme-modal-shell w-full h-full md:h-auto md:max-w-xl md:rounded-3xl shadow-2xl overflow-hidden">
+                <div className="theme-modal-shell w-full h-full md:h-auto md:w-[96vw] md:max-w-6xl md:max-h-[90vh] md:rounded-3xl shadow-2xl overflow-hidden">
                     <div className="theme-modal-header px-5 md:px-8 py-4 md:py-6 flex justify-between items-center sticky top-0 z-10">
                         <h3 className="theme-modal-title font-black text-xl">{editingId ? translate('編輯資產') : translate('新增資產')}</h3>
-                        <button onClick={onClose} className="theme-modal-close"><i data-lucide="x"></i></button>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="theme-modal-close flex items-center justify-center w-9 h-9 text-lg font-black"
+                            aria-label={tByLang('關閉', 'Close', '閉じる')}
+                        >
+                            <span className="leading-none">×</span>
+                        </button>
                     </div>
-                    <form onSubmit={handleSubmit} className="p-5 md:p-8 space-y-4 h-[calc(100vh-96px)] md:h-auto md:max-h-[75vh] overflow-y-auto custom-scrollbar">
+                    <form onSubmit={handleSubmit} className="p-5 md:p-8 space-y-4 h-[calc(100vh-96px)] md:h-auto md:max-h-[calc(90vh-96px)] overflow-y-auto custom-scrollbar">
+                        <div className="rounded-2xl theme-soft-surface p-4 md:p-6 space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                             <div className={`space-y-1 ${(isLiquidForm && !editingId) ? 'col-span-2' : ''}`}>
                                 <label className={FIELD_LABEL_CLASS}>{translate('帳戶 / 機構')}</label>
@@ -101,7 +113,6 @@
 
                         {!needsPremium && !isMortgageForm && !isLiabilityForm && !isReceivableForm && !isFixedForm && !isFixedDepositForm && (
                             <div className={`${MODAL_GROUP_CLASS} grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4`}>
-                                <div className="md:col-span-2 theme-form-group-title"><span className="theme-form-group-icon">🧮</span>{translate('資產數值')}</div>
                                 <div className="space-y-1">
                                     <label className={FIELD_LABEL_CLASS}>{isLiquidForm ? translate('金額') : translate('數量')}</label>
                                     <input required type="number" step="any" className={MODAL_INPUT_CLASS} value={formData.quantity} onChange={updateFormField('quantity')} />
@@ -115,9 +126,9 @@
                             </div>
                         )}
 
+
                         {isFixedDepositForm && (
                             <div className={`${MODAL_GROUP_CLASS} space-y-4`}>
-                                <div className="theme-form-group-title"><span className="theme-form-group-icon">🏦</span>{translate('定期存款設定')}</div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                                     <div className="space-y-1">
                                         <label className={FIELD_LABEL_CLASS}>{translate('本金')}</label>
@@ -133,7 +144,12 @@
                                     </div>
                                     <div className="space-y-1">
                                         <label className={FIELD_LABEL_CLASS}>{translate('起存日 (選填)')}</label>
-                                        <input type="date" className={MODAL_INPUT_CLASS} value={formData.fixedDepositStartDate} onChange={updateFormField('fixedDepositStartDate')} />
+                                        <DatePicker
+                                            value={formData.fixedDepositStartDate}
+                                            onChange={updateFormField('fixedDepositStartDate')}
+                                            className={MODAL_INPUT_CLASS}
+                                            pageLanguage={pageLanguage}
+                                        />
                                     </div>
                                 </div>
 
@@ -152,7 +168,6 @@
 
                         {isMortgageForm && (
                             <div className={`${MODAL_GROUP_CLASS} space-y-4`}>
-                                <div className="theme-form-group-title"><span className="theme-form-group-icon">🏠</span>{translate('房貸設定')}</div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                                     <div className="space-y-1">
                                         <label className={FIELD_LABEL_CLASS}>{translate('樓價')}</label>
@@ -203,7 +218,6 @@
 
                         {isLoanForm && (
                             <div className={`${MODAL_GROUP_CLASS} space-y-4`}>
-                                <div className="theme-form-group-title"><span className="theme-form-group-icon">📄</span>{translate('貸款設定')}</div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                                     <div className="space-y-1">
                                         <label className={FIELD_LABEL_CLASS}>{translate('貸款本金')}</label>
@@ -245,7 +259,6 @@
 
                         {isCreditCardForm && (
                             <div className={`${MODAL_GROUP_CLASS} grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4`}>
-                                <div className="md:col-span-2 theme-form-group-title"><span className="theme-form-group-icon">💳</span>{translate('信用卡設定')}</div>
                                 <div className="space-y-1">
                                     <label className={FIELD_LABEL_CLASS}>{translate('本期結欠')}</label>
                                     <input required type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.creditCardBalance} onChange={updateFormField('creditCardBalance')} />
@@ -256,7 +269,12 @@
                                 </div>
                                 <div className="space-y-1">
                                     <label className={FIELD_LABEL_CLASS}>{translate('到期日')}</label>
-                                    <input type="date" className={MODAL_INPUT_CLASS} value={formData.creditCardDueDate} onChange={updateFormField('creditCardDueDate')} />
+                                    <DatePicker
+                                        value={formData.creditCardDueDate}
+                                        onChange={updateFormField('creditCardDueDate')}
+                                        className={MODAL_INPUT_CLASS}
+                                        pageLanguage={pageLanguage}
+                                    />
                                 </div>
                                 <div className="space-y-1">
                                     <label className={FIELD_LABEL_CLASS}>{translate('年息 (%)')}</label>
@@ -267,14 +285,18 @@
 
                         {isPayableForm && (
                             <div className={`${MODAL_GROUP_CLASS} grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4`}>
-                                <div className="md:col-span-2 theme-form-group-title"><span className="theme-form-group-icon">📌</span>{translate('應付款設定')}</div>
                                 <div className="space-y-1">
                                     <label className={FIELD_LABEL_CLASS}>{translate('應付款金額')}</label>
                                     <input required type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.payableAmount} onChange={updateFormField('payableAmount')} />
                                 </div>
                                 <div className="space-y-1">
                                     <label className={FIELD_LABEL_CLASS}>{translate('到期日')}</label>
-                                    <input type="date" className={MODAL_INPUT_CLASS} value={formData.payableDueDate} onChange={updateFormField('payableDueDate')} />
+                                    <DatePicker
+                                        value={formData.payableDueDate}
+                                        onChange={updateFormField('payableDueDate')}
+                                        className={MODAL_INPUT_CLASS}
+                                        pageLanguage={pageLanguage}
+                                    />
                                 </div>
                                 <div className="space-y-1">
                                     <label className={FIELD_LABEL_CLASS}>{translate('分期期數 (選填)')}</label>
@@ -285,7 +307,6 @@
 
                         {isOtherLiabilityForm && (
                             <div className={`${MODAL_GROUP_CLASS} grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4`}>
-                                <div className="md:col-span-2 theme-form-group-title"><span className="theme-form-group-icon">⚖️</span>{translate('其他負債設定')}</div>
                                 <div className="space-y-1">
                                     <label className={FIELD_LABEL_CLASS}>{translate('未償金額')}</label>
                                     <input required type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.otherOutstanding} onChange={updateFormField('otherOutstanding')} />
@@ -296,21 +317,30 @@
                                 </div>
                                 <div className="space-y-1">
                                     <label className={FIELD_LABEL_CLASS}>{translate('到期日')}</label>
-                                    <input type="date" className={MODAL_INPUT_CLASS} value={formData.otherDueDate} onChange={updateFormField('otherDueDate')} />
+                                    <DatePicker
+                                        value={formData.otherDueDate}
+                                        onChange={updateFormField('otherDueDate')}
+                                        className={MODAL_INPUT_CLASS}
+                                        pageLanguage={pageLanguage}
+                                    />
                                 </div>
                             </div>
                         )}
 
                         {isReceivableForm && (
                             <div className={`${MODAL_GROUP_CLASS} grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4`}>
-                                <div className="md:col-span-2 theme-form-group-title"><span className="theme-form-group-icon">💰</span>{translate('應收款設定')}</div>
                                 <div className="space-y-1">
                                     <label className={FIELD_LABEL_CLASS}>{translate('應收金額')}</label>
                                     <input required type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.receivableAmount} onChange={updateFormField('receivableAmount')} />
                                 </div>
                                 <div className="space-y-1">
                                     <label className={FIELD_LABEL_CLASS}>{translate('到期日')}</label>
-                                    <input type="date" className={MODAL_INPUT_CLASS} value={formData.receivableDueDate} onChange={updateFormField('receivableDueDate')} />
+                                    <DatePicker
+                                        value={formData.receivableDueDate}
+                                        onChange={updateFormField('receivableDueDate')}
+                                        className={MODAL_INPUT_CLASS}
+                                        pageLanguage={pageLanguage}
+                                    />
                                 </div>
                                 <div className="space-y-1">
                                     <label className={FIELD_LABEL_CLASS}>{translate('分期期數 (選填)')}</label>
@@ -325,7 +355,6 @@
 
                         {isFixedForm && (
                             <div className={`${MODAL_GROUP_CLASS} space-y-4`}>
-                                <div className="theme-form-group-title"><span className="theme-form-group-icon">📦</span>{translate('固定資產設定')}</div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                                     <div className="space-y-1">
                                         <label className={FIELD_LABEL_CLASS}>{translate('購入成本')}</label>
@@ -337,7 +366,12 @@
                                     </div>
                                     <div className="space-y-1">
                                         <label className={FIELD_LABEL_CLASS}>{translate('購入日期')}</label>
-                                        <input type="date" className={MODAL_INPUT_CLASS} value={formData.fixedPurchaseDate} onChange={updateFormField('fixedPurchaseDate')} />
+                                        <DatePicker
+                                            value={formData.fixedPurchaseDate}
+                                            onChange={updateFormField('fixedPurchaseDate')}
+                                            className={MODAL_INPUT_CLASS}
+                                            pageLanguage={pageLanguage}
+                                        />
                                     </div>
                                     <div className="space-y-1">
                                         <label className={FIELD_LABEL_CLASS}>{translate('備註')}</label>
@@ -349,7 +383,6 @@
 
                         {needsPremium && (
                             <div className={`${MODAL_GROUP_CLASS} grid grid-cols-2 gap-4`}>
-                                <div className="col-span-2 theme-form-group-title"><span className="theme-form-group-icon">🛡️</span>{translate('保費設定')}</div>
                                 <div className="space-y-1">
                                     <label className={FIELD_LABEL_CLASS}>{translate('每期保費')}</label>
                                     <input required type="number" step="any" className={MODAL_INPUT_CLASS} value={formData.premiumAmount} onChange={updateFormField('premiumAmount')} />
@@ -373,7 +406,6 @@
                         )}
 
                         <div className={`${MODAL_GROUP_CLASS} grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4`}>
-                            <div className="md:col-span-2 theme-form-group-title"><span className="theme-form-group-icon">🌍</span>{translate('幣種與代號')}</div>
                             <div className="space-y-1">
                                 <label className={FIELD_LABEL_CLASS}>{translate('計價幣種')}</label>
                                 <select className={MODAL_INPUT_CLASS} value={formData.currency} onChange={updateFormField('currency')}>
@@ -397,6 +429,7 @@
                             )}
                         </div>
 
+
                         {editingId && !isLiquidForm && !needsPremium && !isMortgageForm && !isLiabilityForm && !isReceivableForm && !isFixedForm && !isFixedDepositForm && (
                             <div className="space-y-1">
                                 <label className={FIELD_LABEL_CLASS}>{translate('當前現價 (手動修正)')}</label>
@@ -413,6 +446,7 @@
                             <button type="submit" className="flex-[2] theme-btn-primary text-white py-4 rounded-xl font-black transition-all shadow-lg">
                                 {editingId ? translate('確認修改') : translate('儲存資產')}
                             </button>
+                        </div>
                         </div>
                     </form>
                 </div>

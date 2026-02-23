@@ -68,7 +68,7 @@
                             {tByLang('取消編輯', 'Cancel Edit', '編集をキャンセル')}
                         </button>
                     ) : (
-                        <div className="w-full px-3 py-2.5 rounded-lg theme-soft-surface text-xs font-black text-center theme-text-sub">{tByLang('點選規則可編輯', 'Click a rule to edit', 'ルールをクリックして編集')}</div>
+                        <div className="w-full" />
                     )}
                 </div>
             </div>

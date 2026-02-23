@@ -24,6 +24,7 @@
     <script src="./cashflow-rules.js"></script>
     <script src="./cashflow-form.js"></script>
     <script src="./asset-actions.js"></script>
+    <script type="text/babel" src="./date-picker-view.js"></script>
     <script type="text/babel" src="./cashflow-form-view.js"></script>
     <script type="text/babel" src="./cashflow-overview-view.js"></script>
     <script type="text/babel" src="./cashflow-rules-view.js"></script>
@@ -494,6 +495,14 @@
         }
 
         const {
+            DatePicker,
+            MonthPicker
+        } = window.APP_DATE_PICKER || {};
+        if (!DatePicker || !MonthPicker) {
+            throw new Error('date-picker-view.js is missing or incomplete.');
+        }
+
+        const {
             buildMarketTargets,
             applyQuotePricesToAssets
         } = window.APP_MARKET_SYNC || {};
@@ -699,6 +708,7 @@
             }));
 
             const [isModalOpen, setIsModalOpen] = useState(false);
+            const [isCashflowModalOpen, setIsCashflowModalOpen] = useState(false);
             const [editingId, setEditingId] = useState(null);
             const [selectedCategories, setSelectedCategories] = useState(CATEGORY_KEYS);
             const [sortMode, setSortMode] = useState('AMOUNT_DESC');
@@ -734,7 +744,7 @@
             const [cashflowRuleFilter, setCashflowRuleFilter] = useState('ALL');
             const [cashflowRuleSortMode, setCashflowRuleSortMode] = useState('START_DESC');
             const [cashflowRulesVisibleCount, setCashflowRulesVisibleCount] = useState(20);
-            const [cashflowForm, setCashflowForm] = useState(() => {
+            const createInitialCashflowForm = () => {
                 const today = toDateKey(new Date());
                 return {
                     title: '',
@@ -752,7 +762,8 @@
                     targetLiquidAssetId: '',
                     note: ''
                 };
-            });
+            };
+            const [cashflowForm, setCashflowForm] = useState(() => createInitialCashflowForm());
             const updateCashflowField = (field) => (event) => {
                 const value = event.target.value;
                 if (field === 'currency') markRecentCurrency(value);
@@ -1264,7 +1275,7 @@
 
             useEffect(() => {
                 if (window.lucide) window.lucide.createIcons();
-            }, [assets, isModalOpen, selectedCategories, sortMode, isUpdatingPrice]);
+            }, [assets, isModalOpen, isCashflowModalOpen, selectedCategories, sortMode, isUpdatingPrice]);
 
             const pageText = useMemo(() => UI_TEXT[pageLanguage] || UI_TEXT['zh-Hant'], [pageLanguage]);
             const tByLang = (zh, en, ja) => (pageLanguage === 'en-US' ? en : (pageLanguage === 'ja-JP' ? ja : zh));
@@ -1417,7 +1428,7 @@
                 const observer = new MutationObserver(() => applyFullPageTranslation());
                 observer.observe(root, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['placeholder', 'title', 'aria-label'] });
                 return () => observer.disconnect();
-            }, [pageLanguage, assets, cashflowEntries, financeSectionTab, isModalOpen, editingId, editingCashflowId, showSettings]);
+            }, [pageLanguage, assets, cashflowEntries, financeSectionTab, isModalOpen, isCashflowModalOpen, editingId, editingCashflowId, showSettings]);
 
             useEffect(() => {
                 setHeaderSloganIndex(0);
@@ -1454,6 +1465,9 @@
                 if (isModalOpen) {
                     return pageLanguage === 'en-US' ? '📝 Fill the form and save the asset.' : (pageLanguage === 'ja-JP' ? '📝 フォーム入力後に保存してください。' : '📝 在表單填好資料後按「儲存資產」就完成囉！');
                 }
+                if (isCashflowModalOpen) {
+                    return pageLanguage === 'en-US' ? '🧾 Add or edit a cashflow rule in the modal.' : (pageLanguage === 'ja-JP' ? '🧾 モーダルでキャッシュフロールールを追加/編集します。' : '🧾 在彈窗新增或編輯現金流規則。');
+                }
                 if (editingCashflowId) {
                     return pageLanguage === 'en-US' ? '🔧 You are editing a rule. Remember to save.' : (pageLanguage === 'ja-JP' ? '🔧 ルール編集中です。保存を忘れずに。' : '🔧 你正在編輯規則，記得確認儲存。');
                 }
@@ -1465,7 +1479,7 @@
                 }
                 if (priceStatus) return `📣 ${priceStatus}`;
                 return currentIdleHint;
-            }, [isGeneratingPdf, isUpdatingPrice, isUpdatingRates, isCloudSyncing, isModalOpen, editingCashflowId, showSettings, financeSectionTab, priceStatus, currentIdleHint, pageLanguage]);
+            }, [isGeneratingPdf, isUpdatingPrice, isUpdatingRates, isCloudSyncing, isModalOpen, isCashflowModalOpen, editingCashflowId, showSettings, financeSectionTab, priceStatus, currentIdleHint, pageLanguage]);
 
             const totals = useMemo(() => {
                 let assetsHKD = 0;
@@ -2002,6 +2016,14 @@
                 setSelectedCashflowMonth(toMonthKey(next));
             };
 
+            const startNewCashflowEntry = () => {
+                setEditingCashflowId('');
+                setCashflowForm(createInitialCashflowForm());
+                setFinanceSectionTab('CASHFLOW');
+                setPriceStatus(tByLang('準備新增現金流', 'Ready to add cashflow', 'キャッシュフローを追加します'));
+                setIsCashflowModalOpen(true);
+            };
+
             const startEditCashflowEntry = (entry) => {
                 setEditingCashflowId(entry.id);
                 setCashflowForm(buildCashflowFormFromEntry({
@@ -2012,9 +2034,7 @@
                 }));
                 setFinanceSectionTab('CASHFLOW');
                 setPriceStatus(tByLang('已載入規則，可修改後儲存', 'Rule loaded. You can edit and save it', 'ルールを読み込みました。編集して保存できます'));
-                requestAnimationFrame(() => {
-                    cashflowFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                });
+                setIsCashflowModalOpen(true);
             };
 
             const handleCashflowSubmit = (event) => {
@@ -2034,6 +2054,73 @@
                 }
 
                 if (submission.isEditing) {
+                    const prevEntry = cashflowEntries.find(item => item.id === editingCashflowId);
+                    const nextTargetId = submission.nextEntry.targetLiquidAssetId || '';
+                    const prevTargetId = prevEntry?.targetLiquidAssetId || '';
+
+                    if (prevEntry && prevTargetId !== nextTargetId) {
+                        const liquidAssetIndexMap = {};
+                        const nextAssets = [...assets];
+                        nextAssets.forEach((asset, index) => {
+                            if (asset.category === 'LIQUID') liquidAssetIndexMap[asset.id] = index;
+                        });
+
+                        const nextAppliedPostings = { ...cashflowAppliedPostings };
+                        const nextAppliedKeySet = new Set(cashflowAppliedOccurrenceKeys);
+
+                        Object.keys(cashflowAppliedPostings).forEach(postingKey => {
+                            const posting = cashflowAppliedPostings[postingKey];
+                            if (!posting || posting.entryId !== editingCashflowId) return;
+
+                            const oldTargetId = posting.targetLiquidAssetId || prevTargetId;
+                            const oldIndex = liquidAssetIndexMap[oldTargetId];
+                            if (Number.isInteger(oldIndex)) {
+                                const oldAsset = nextAssets[oldIndex];
+                                if (oldAsset && oldAsset.category === 'LIQUID') {
+                                    const nextQuantity = Number(oldAsset.quantity || 0) - Number(posting.signedAmount || 0);
+                                    nextAssets[oldIndex] = {
+                                        ...oldAsset,
+                                        quantity: Number(nextQuantity.toFixed(6))
+                                    };
+                                }
+                            }
+
+                            delete nextAppliedPostings[postingKey];
+                            nextAppliedKeySet.delete(postingKey);
+
+                            if (!nextTargetId) return;
+                            const nextIndex = liquidAssetIndexMap[nextTargetId];
+                            if (!Number.isInteger(nextIndex)) return;
+
+                            const nextAsset = nextAssets[nextIndex];
+                            if (!nextAsset || nextAsset.category !== 'LIQUID') return;
+
+                            const amountHKD = toHKD(Number(posting.signedAmount || 0), posting.targetCurrency || nextAsset.currency);
+                            const signedAmount = fromHKD(amountHKD, nextAsset.currency);
+                            const nextQuantity = Number(nextAsset.quantity || 0) + signedAmount;
+                            nextAssets[nextIndex] = {
+                                ...nextAsset,
+                                quantity: Number(nextQuantity.toFixed(6))
+                            };
+
+                            const dateKey = parseOccurrenceDateFromPostingKey(postingKey);
+                            const nextKey = dateKey
+                                ? `${editingCashflowId}@${dateKey}@${nextTargetId}`
+                                : `${editingCashflowId}@${nextTargetId}`;
+                            nextAppliedPostings[nextKey] = {
+                                ...posting,
+                                targetLiquidAssetId: nextTargetId,
+                                signedAmount: Number(signedAmount.toFixed(6)),
+                                targetCurrency: nextAsset.currency
+                            };
+                            nextAppliedKeySet.add(nextKey);
+                        });
+
+                        setAssets(nextAssets);
+                        setCashflowAppliedPostings(nextAppliedPostings);
+                        setCashflowAppliedOccurrenceKeys(Array.from(nextAppliedKeySet));
+                    }
+
                     setCashflowEntries(prev => sanitizeCashflowEntries(prev.map(item => item.id === editingCashflowId ? submission.nextEntry : item)));
                 } else {
                     setCashflowEntries(prev => sanitizeCashflowEntries([...prev, submission.nextEntry]));
@@ -2061,6 +2148,7 @@
                     tByLang
                 });
                 setPriceStatus(statusMessage);
+                setIsCashflowModalOpen(false);
             };
 
             const handleDeleteCashflowEntry = (id) => {
@@ -2134,6 +2222,7 @@
                 setCashflowEntries(prev => prev.filter(item => item.id !== id));
                 if (editingCashflowId === id) {
                     setEditingCashflowId('');
+                    setIsCashflowModalOpen(false);
                 }
             };
 
@@ -2146,7 +2235,8 @@
                     note: '',
                     oneTimeDates: []
                 }));
-                setPriceStatus('已取消編輯');
+                setIsCashflowModalOpen(false);
+                setPriceStatus(tByLang('已取消編輯', 'Edit canceled', '編集をキャンセルしました'));
             };
 
             const isCashflowOneTime = cashflowForm.scheduleType === 'ONE_TIME';
@@ -2798,13 +2888,12 @@
                                 <button onClick={() => { setEditingId(null); setIsModalOpen(true); }} className="bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-slate-800 transition-all shadow-md flex items-center gap-2">
                                     <i data-lucide="plus-circle" className="w-4 h-4"></i> {pageText.addAsset}
                                 </button>
-
                                 <button
-                                    onClick={resetToSeed}
-                                    title={tByLang('可愛重設：清空目前資料並回到範例帳本', 'Cute reset: clear current data and restore sample ledger', 'かわいくリセット：現在のデータを消去してサンプル台帳に戻します')}
-                                    className="theme-btn-danger text-white px-4 py-2 rounded-lg font-bold text-sm transition-all shadow-md"
+                                    onClick={startNewCashflowEntry}
+                                    className="theme-btn-accent text-white px-4 py-2 rounded-lg font-bold text-sm transition-all shadow-md flex items-center gap-2"
                                 >
-                                    {pageText.resetData}
+                                    <i data-lucide="plus-circle" className="w-4 h-4"></i>
+                                    {tByLang('新增現金流', 'Add Cashflow', 'キャッシュフローを追加')}
                                 </button>
 
                                 <div className="relative ml-auto">
@@ -2890,6 +2979,13 @@
                                                 className="w-full theme-tab-inactive px-4 py-2 rounded-lg font-bold text-sm transition-all"
                                             >
                                                 {pageText.importData}
+                                            </button>
+                                            <button
+                                                onClick={() => { resetToSeed(); setShowSettings(false); }}
+                                                title={tByLang('可愛重設：清空目前資料並回到範例帳本', 'Cute reset: clear current data and restore sample ledger', 'かわいくリセット：現在のデータを消去してサンプル台帳に戻します')}
+                                                className="theme-btn-danger w-full text-white px-4 py-2 rounded-lg font-bold text-sm transition-all"
+                                            >
+                                                {pageText.resetData}
                                             </button>
                                             <button
                                                 onClick={() => { updateMarketAndRates({ updateMarket: true, updateRates: true, showToast: true }); setShowSettings(false); }}
@@ -3171,11 +3267,11 @@
                                 >
                                     {pageText.prevMonth}
                                 </button>
-                                <input
-                                    type="month"
+                                <MonthPicker
                                     value={selectedCashflowMonth}
                                     onChange={e => setSelectedCashflowMonth(e.target.value || toMonthKey(new Date()))}
                                     className="px-3 py-2 rounded-lg text-xs font-black theme-input outline-none"
+                                    pageLanguage={pageLanguage}
                                 />
                                 <button
                                     type="button"
@@ -3188,37 +3284,6 @@
                         </div>
 
                         <div className="flex flex-col gap-5">
-
-                        <CashflowRuleForm
-                            cashflowFormRef={cashflowFormRef}
-                            handleCashflowSubmit={handleCashflowSubmit}
-                            editingCashflowId={editingCashflowId}
-                            cashflowEntries={cashflowEntries}
-                            cashflowAccountOptions={cashflowAccountOptions}
-                            FIELD_LABEL_CLASS={FIELD_LABEL_CLASS}
-                            CASHFLOW_INPUT_CLASS={CASHFLOW_INPUT_CLASS}
-                            CASHFLOW_INPUT_FOCUS_CLASS={CASHFLOW_INPUT_FOCUS_CLASS}
-                            cashflowForm={cashflowForm}
-                            updateCashflowField={updateCashflowField}
-                            toggleCashflowOneTimeDate={toggleCashflowOneTimeDate}
-                            updateCashflowOneTimeMonth={updateCashflowOneTimeMonth}
-                            applyCashflowOneTimeMonthPreset={applyCashflowOneTimeMonthPreset}
-                            clearCashflowOneTimeDates={clearCashflowOneTimeDates}
-                            updateCashflowType={updateCashflowType}
-                            updateCashflowTargetLiquidAsset={updateCashflowTargetLiquidAsset}
-                            CASHFLOW_TYPES={CASHFLOW_TYPES}
-                            CASHFLOW_SCHEDULE_TYPES={CASHFLOW_SCHEDULE_TYPES}
-                            liquidAssetOptions={liquidAssetOptions}
-                            CURRENCIES={orderedCurrencies}
-                            isCashflowOneTime={isCashflowOneTime}
-                            isCashflowMonthlyRecurring={isCashflowMonthlyRecurring}
-                            CASHFLOW_FREQUENCIES={CASHFLOW_FREQUENCIES}
-                            availableCashflowCategories={availableCashflowCategories}
-                            parseDateKey={parseDateKey}
-                            toDateKey={toDateKey}
-                            pageLanguage={pageLanguage}
-                        />
-
                         <CashflowOverviewView
                             cashflowMonthData={cashflowMonthData}
                             cashflowYearData={cashflowYearData}
@@ -3826,6 +3891,59 @@
                         handleDelete={handleDelete}
                         pageLanguage={pageLanguage}
                     />
+
+                    {isCashflowModalOpen && (
+                        <div className="fixed inset-0 z-50 flex items-stretch md:items-center justify-center p-0 md:p-4 modal-overlay">
+                            <div className="theme-modal-shell w-full h-full md:h-auto md:w-[96vw] md:max-w-6xl md:max-h-[90vh] md:rounded-3xl shadow-2xl overflow-hidden">
+                                <div className="theme-modal-header px-5 md:px-8 py-4 md:py-6 flex justify-between items-center sticky top-0 z-10">
+                                    <h3 className="theme-modal-title font-black text-xl">
+                                        {editingCashflowId
+                                            ? tByLang('編輯現金流', 'Edit Cashflow', 'キャッシュフローを編集')
+                                            : tByLang('新增現金流', 'Add Cashflow', 'キャッシュフローを追加')}
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setIsCashflowModalOpen(false); setEditingCashflowId(''); }}
+                                        className="theme-modal-close flex items-center justify-center w-9 h-9 text-lg font-black"
+                                        aria-label={tByLang('關閉', 'Close', '閉じる')}
+                                    >
+                                        <span className="leading-none">×</span>
+                                    </button>
+                                </div>
+                                <div className="p-5 md:p-8 h-[calc(100vh-96px)] md:h-auto md:max-h-[calc(90vh-96px)] overflow-y-auto custom-scrollbar">
+                                    <CashflowRuleForm
+                                        cashflowFormRef={cashflowFormRef}
+                                        handleCashflowSubmit={handleCashflowSubmit}
+                                        editingCashflowId={editingCashflowId}
+                                        cashflowEntries={cashflowEntries}
+                                        cashflowAccountOptions={cashflowAccountOptions}
+                                        FIELD_LABEL_CLASS={FIELD_LABEL_CLASS}
+                                        CASHFLOW_INPUT_CLASS={CASHFLOW_INPUT_CLASS}
+                                        CASHFLOW_INPUT_FOCUS_CLASS={CASHFLOW_INPUT_FOCUS_CLASS}
+                                        cashflowForm={cashflowForm}
+                                        updateCashflowField={updateCashflowField}
+                                        toggleCashflowOneTimeDate={toggleCashflowOneTimeDate}
+                                        updateCashflowOneTimeMonth={updateCashflowOneTimeMonth}
+                                        applyCashflowOneTimeMonthPreset={applyCashflowOneTimeMonthPreset}
+                                        clearCashflowOneTimeDates={clearCashflowOneTimeDates}
+                                        updateCashflowType={updateCashflowType}
+                                        updateCashflowTargetLiquidAsset={updateCashflowTargetLiquidAsset}
+                                        CASHFLOW_TYPES={CASHFLOW_TYPES}
+                                        CASHFLOW_SCHEDULE_TYPES={CASHFLOW_SCHEDULE_TYPES}
+                                        liquidAssetOptions={liquidAssetOptions}
+                                        CURRENCIES={orderedCurrencies}
+                                        isCashflowOneTime={isCashflowOneTime}
+                                        isCashflowMonthlyRecurring={isCashflowMonthlyRecurring}
+                                        CASHFLOW_FREQUENCIES={CASHFLOW_FREQUENCIES}
+                                        availableCashflowCategories={availableCashflowCategories}
+                                        parseDateKey={parseDateKey}
+                                        toDateKey={toDateKey}
+                                        pageLanguage={pageLanguage}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="hidden md:block fixed right-4 bottom-5 z-30 pointer-events-none">
                         <div className="max-w-[250px] rounded-2xl theme-surface backdrop-blur-sm shadow-lg px-3 py-2 prince-talk">
