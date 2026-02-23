@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SweetPrinceLedger</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%91%91%3C/text%3E%3C/svg%3E">
+    <link rel="shortcut icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%91%91%3C/text%3E%3C/svg%3E">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -47,6 +49,16 @@
             border: 1px solid var(--header-border, #FFD1DC);
             background: linear-gradient(90deg, var(--header-bg-start, #FEF5F7), var(--header-bg-mid, #F2FBFD), var(--header-bg-end, #FFF7EC));
         }
+        [data-theme='mint-prince'] .theme-header-card {
+            border-color: color-mix(in srgb, var(--gold, #F2D492) 28%, var(--header-border, rgba(224, 212, 245, 0.2)) 72%);
+            box-shadow:
+                0 0 0 1px color-mix(in srgb, var(--gold, #F2D492) 22%, transparent 78%),
+                0 10px 24px color-mix(in srgb, var(--gold, #F2D492) 18%, transparent 82%);
+            background:
+                radial-gradient(circle at 12% 24%, color-mix(in srgb, var(--gold, #F2D492) 72%, #ffffff 28%) 0 1.4px, transparent 2.2px),
+                radial-gradient(circle at 82% 30%, color-mix(in srgb, var(--gold, #F2D492) 64%, #ffffff 36%) 0 1.2px, transparent 2px),
+                linear-gradient(90deg, var(--header-bg-start, #F9F5FF), var(--header-bg-mid, #FAF8FF), var(--header-bg-end, #FEFCFF));
+        }
         .theme-crown {
             background: linear-gradient(135deg, var(--gold, #E8C39E), var(--primary, #FFB6C1), var(--accent, #A7D8DE));
         }
@@ -85,20 +97,20 @@
             background-color: var(--panel-soft, #FEF5F7);
         }
         .theme-summary-card--danger {
-            background-color: color-mix(in srgb, var(--danger, #FFB3BA) 18%, #ffffff 82%);
-            border-color: color-mix(in srgb, var(--danger, #FFB3BA) 60%, #ffffff 40%);
+            background-color: color-mix(in srgb, var(--danger, #FFB3BA) 20%, var(--panel-bg, #FFFFFF) 80%);
+            border-color: color-mix(in srgb, var(--danger, #FFB3BA) 58%, var(--header-border, #FFD1DC) 42%);
         }
         .theme-summary-card--early {
-            background-color: color-mix(in srgb, var(--primary, #FFB6C1) 15%, #ffffff 85%);
-            border-color: color-mix(in srgb, var(--primary, #FFB6C1) 55%, #ffffff 45%);
+            background-color: color-mix(in srgb, var(--primary, #FFB6C1) 18%, var(--panel-bg, #FFFFFF) 82%);
+            border-color: color-mix(in srgb, var(--primary, #FFB6C1) 54%, var(--header-border, #FFD1DC) 46%);
         }
         .theme-summary-card--growth {
-            background-color: color-mix(in srgb, var(--accent, #A7D8DE) 16%, #ffffff 84%);
-            border-color: color-mix(in srgb, var(--accent, #A7D8DE) 50%, #ffffff 50%);
+            background-color: color-mix(in srgb, var(--accent, #A7D8DE) 18%, var(--panel-bg, #FFFFFF) 82%);
+            border-color: color-mix(in srgb, var(--accent, #A7D8DE) 50%, var(--header-border, #FFD1DC) 50%);
         }
         .theme-summary-card--elite {
-            background-color: color-mix(in srgb, var(--gold, #E8C39E) 20%, #ffffff 80%);
-            border-color: color-mix(in srgb, var(--gold, #E8C39E) 58%, #ffffff 42%);
+            background-color: color-mix(in srgb, var(--gold, #E8C39E) 22%, var(--panel-bg, #FFFFFF) 78%);
+            border-color: color-mix(in srgb, var(--gold, #E8C39E) 56%, var(--header-border, #FFD1DC) 44%);
         }
         .theme-mix-item {
             border: 1px solid transparent;
@@ -107,25 +119,32 @@
             background-color: color-mix(in srgb, var(--panel-soft, #FEF5F7) 72%, #ffffff 28%);
         }
         .theme-mix-item--danger-selected {
-            background-color: color-mix(in srgb, var(--danger, #FFB3BA) 20%, #ffffff 80%);
-            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger, #FFB3BA) 58%, #ffffff 42%);
+            background-color: color-mix(in srgb, var(--danger, #FFB3BA) 20%, var(--panel-bg, #FFFFFF) 80%);
+            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger, #FFB3BA) 58%, var(--header-border, #FFD1DC) 42%);
         }
         .theme-mix-item--early-selected {
-            background-color: color-mix(in srgb, var(--primary, #FFB6C1) 20%, #ffffff 80%);
-            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary, #FFB6C1) 58%, #ffffff 42%);
+            background-color: color-mix(in srgb, var(--primary, #FFB6C1) 20%, var(--panel-bg, #FFFFFF) 80%);
+            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary, #FFB6C1) 58%, var(--header-border, #FFD1DC) 42%);
         }
         .theme-mix-item--growth-selected {
-            background-color: color-mix(in srgb, var(--accent, #A7D8DE) 20%, #ffffff 80%);
-            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #A7D8DE) 58%, #ffffff 42%);
+            background-color: color-mix(in srgb, var(--accent, #A7D8DE) 20%, var(--panel-bg, #FFFFFF) 80%);
+            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #A7D8DE) 58%, var(--header-border, #FFD1DC) 42%);
         }
         .theme-mix-item--elite-selected {
-            background-color: color-mix(in srgb, var(--gold, #E8C39E) 22%, #ffffff 78%);
-            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold, #E8C39E) 60%, #ffffff 40%);
+            background-color: color-mix(in srgb, var(--gold, #E8C39E) 22%, var(--panel-bg, #FFFFFF) 78%);
+            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold, #E8C39E) 60%, var(--header-border, #FFD1DC) 40%);
         }
         /* moved bridge and semantic theme utilities to theme-bridge.css */
         .theme-surface {
             background-color: var(--panel-bg, #FFFFFF);
             border: 1px solid var(--header-border, #FFD1DC);
+        }
+        [data-theme='mint-prince'] .theme-surface,
+        [data-theme='mint-prince'] .theme-summary-card,
+        [data-theme='mint-prince'] .theme-soft-surface,
+        [data-theme='mint-prince'] .theme-modal-shell {
+            border-color: color-mix(in srgb, var(--gold, #F2D492) 24%, var(--header-border, rgba(224, 212, 245, 0.2)) 76%);
+            box-shadow: 0 0 0 1px color-mix(in srgb, var(--gold, #F2D492) 12%, transparent 88%);
         }
         .theme-soft-surface {
             background-color: var(--panel-soft, #FEF5F7);
@@ -225,6 +244,9 @@
         .theme-chip-inactive:hover {
             background-color: var(--panel-soft, #FEF5F7);
         }
+        .theme-bar-bg {
+            background-color: color-mix(in srgb, var(--panel-soft, #FEF5F7) 75%, var(--panel-bg, #FFFFFF) 25%);
+        }
         .theme-income-card {
             background-color: color-mix(in srgb, var(--accent, #A7D8DE) 18%, #FFFFFF 82%);
             border: 1px solid color-mix(in srgb, var(--accent, #A7D8DE) 55%, #FFFFFF 45%);
@@ -282,9 +304,7 @@
             isCloudEnabled,
             CATEGORIES,
             CRYPTO_ID_MAP,
-            CATEGORY_MIX_STYLES,
             CATEGORY_KEYS,
-            INVEST_CHART_COLORS,
             CASHFLOW_TYPES,
             CASHFLOW_SCHEDULE_TYPES,
             CASHFLOW_FREQUENCIES,
@@ -691,6 +711,133 @@
             const importInputRef = useRef(null);
             const cashflowFormRef = useRef(null);
 
+            const getThemeToken = (tokenName, fallback) => {
+                if (typeof window === 'undefined' || typeof document === 'undefined') return fallback;
+                const value = getComputedStyle(document.documentElement).getPropertyValue(tokenName).trim();
+                return value || fallback;
+            };
+
+            const chartThemePalette = useMemo(() => {
+                return [
+                    getThemeToken('--primary', '#F472B6'),
+                    getThemeToken('--accent', '#38BDF8'),
+                    getThemeToken('--gold', '#F59E0B'),
+                    getThemeToken('--card-net-mid', '#A78BFA'),
+                    getThemeToken('--card-net-end', '#818CF8'),
+                    getThemeToken('--danger', '#F43F5E'),
+                    getThemeToken('--header-border', '#22D3EE'),
+                    getThemeToken('--panel-soft', '#FB7185')
+                ];
+            }, [themeId]);
+
+            const exportThemeTokens = useMemo(() => ({
+                '--bg-page': getThemeToken('--bg-page', '#ffffff'),
+                '--text-main': getThemeToken('--text-main', '#0f172a'),
+                '--text-sub': getThemeToken('--text-sub', '#475569'),
+                '--panel-bg': getThemeToken('--panel-bg', '#ffffff'),
+                '--panel-soft': getThemeToken('--panel-soft', '#f8fafc'),
+                '--header-border': getThemeToken('--header-border', '#cbd5e1'),
+                '--primary': getThemeToken('--primary', '#F472B6'),
+                '--accent': getThemeToken('--accent', '#38BDF8'),
+                '--gold': getThemeToken('--gold', '#F59E0B'),
+                '--danger': getThemeToken('--danger', '#F43F5E')
+            }), [themeId]);
+
+            const categoryMixHexByKey = useMemo(() => {
+                return {
+                    LIQUID: getThemeToken('--accent', '#0EA5E9'),
+                    INVEST: getThemeToken('--primary', '#8B5CF6'),
+                    INSURANCE: getThemeToken('--card-net-mid', '#06B6D4'),
+                    FIXED: getThemeToken('--gold', '#F59E0B'),
+                    RECEIVABLE: getThemeToken('--card-net-end', '#6366F1'),
+                    LIABILITY: getThemeToken('--danger', '#F43F5E')
+                };
+            }, [themeId]);
+
+            const buildNetworthCardStyle = (currentThemeId, tierIndex) => {
+                const safeTier = Math.max(0, Math.min(13, Number(tierIndex) || 0));
+                const paletteByTheme = {
+                    'macaron-prince': ['--primary', '--accent', '--gold', '--danger'],
+                    'mint-prince': ['--primary', '--accent', '--gold', '--card-net-end'],
+                    'lavender-prince': ['--accent', '--card-net-end', '--gold', '--primary']
+                };
+                const selectedPalette = paletteByTheme[currentThemeId] || paletteByTheme['macaron-prince'];
+                const startVar = selectedPalette[safeTier % selectedPalette.length];
+                const midVar = selectedPalette[(safeTier + 1) % selectedPalette.length];
+                const endVar = selectedPalette[(safeTier + 2) % selectedPalette.length];
+
+                const angle = 92 + safeTier * 5;
+                const startStrength = Math.min(86, 58 + safeTier * 2);
+                const midStrength = Math.min(84, 54 + safeTier * 2);
+                const endStrength = Math.min(82, 50 + safeTier * 2);
+
+                const baseGradient = `linear-gradient(${angle}deg, color-mix(in srgb, var(${startVar}) ${startStrength}%, var(--panel-bg, #FFFFFF) ${100 - startStrength}%), color-mix(in srgb, var(${midVar}) ${midStrength}%, var(--panel-bg, #FFFFFF) ${100 - midStrength}%), color-mix(in srgb, var(${endVar}) ${endStrength}%, var(--panel-bg, #FFFFFF) ${100 - endStrength}%))`;
+
+                const starOverlay = currentThemeId === 'mint-prince'
+                    ? `radial-gradient(circle at ${14 + safeTier * 2}% ${22 + safeTier}% , color-mix(in srgb, var(--gold, #F2D492) 76%, #ffffff 24%) 0 1.4px, transparent 2.4px), radial-gradient(circle at ${82 - safeTier}% ${24 + safeTier * 2}% , color-mix(in srgb, var(--gold, #F2D492) 68%, #ffffff 32%) 0 1.2px, transparent 2.1px)`
+                    : '';
+
+                const borderStrength = Math.min(72, 40 + safeTier * 2);
+                const glowStrength = safeTier >= 12 ? 30 : (safeTier >= 9 ? 22 : (safeTier >= 5 ? 14 : 8));
+                const shadowStrength = safeTier >= 12 ? 0.35 : (safeTier >= 9 ? 0.28 : 0.2);
+
+                return {
+                    background: starOverlay ? `${starOverlay}, ${baseGradient}` : baseGradient,
+                    border: `1px solid color-mix(in srgb, var(--gold, #E8C39E) ${borderStrength}%, var(--header-border, #FFD1DC) ${100 - borderStrength}%)`,
+                    boxShadow: `0 0 0 1px color-mix(in srgb, var(--gold, #E8C39E) ${glowStrength}%, transparent ${100 - glowStrength}%), 0 12px 26px color-mix(in srgb, var(--card-net-mid, #C8B6FF) ${Math.round(shadowStrength * 100)}%, transparent ${100 - Math.round(shadowStrength * 100)}%)`
+                };
+            };
+
+            const buildSummaryCardStyle = (currentThemeId, tierIndex, variant = 'asset') => {
+                const safeTier = Math.max(0, Math.min(13, Number(tierIndex) || 0));
+                const assetPaletteByTheme = {
+                    'macaron-prince': ['--primary', '--accent', '--gold'],
+                    'mint-prince': ['--primary', '--accent', '--card-net-end'],
+                    'lavender-prince': ['--accent', '--card-net-end', '--primary']
+                };
+                const liabilityPaletteByTheme = {
+                    'macaron-prince': ['--danger', '--primary', '--gold'],
+                    'mint-prince': ['--danger', '--primary', '--accent'],
+                    'lavender-prince': ['--danger', '--accent', '--card-net-end']
+                };
+
+                const paletteSource = variant === 'liability' ? liabilityPaletteByTheme : assetPaletteByTheme;
+                const selectedPalette = paletteSource[currentThemeId] || paletteSource['macaron-prince'];
+                const startVar = selectedPalette[safeTier % selectedPalette.length];
+                const endVar = selectedPalette[(safeTier + 1) % selectedPalette.length];
+
+                const tintStrength = Math.min(34, 14 + safeTier);
+                const borderStrength = Math.min(62, 38 + safeTier);
+                const shadowStrength = variant === 'liability'
+                    ? (safeTier >= 8 ? 18 : 12)
+                    : (safeTier >= 10 ? 16 : 10);
+
+                return {
+                    background: `linear-gradient(135deg, color-mix(in srgb, var(${startVar}) ${tintStrength}%, var(--panel-bg, #FFFFFF) ${100 - tintStrength}%), color-mix(in srgb, var(${endVar}) ${Math.max(12, tintStrength - 6)}%, var(--panel-bg, #FFFFFF) ${100 - Math.max(12, tintStrength - 6)}%))`,
+                    border: `1px solid color-mix(in srgb, var(${startVar}) ${borderStrength}%, var(--header-border, #FFD1DC) ${100 - borderStrength}%)`,
+                    boxShadow: `0 1px 0 color-mix(in srgb, var(${endVar}) ${Math.max(10, borderStrength - 12)}%, transparent ${100 - Math.max(10, borderStrength - 12)}%), 0 8px 18px color-mix(in srgb, var(${startVar}) ${shadowStrength}%, transparent ${100 - shadowStrength})`
+                };
+            };
+
+            const buildMixSelectedStyle = (currentThemeId, tierIndex) => {
+                const safeTier = Math.max(0, Math.min(13, Number(tierIndex) || 0));
+                const paletteByTheme = {
+                    'macaron-prince': ['--primary', '--accent', '--gold'],
+                    'mint-prince': ['--primary', '--accent', '--gold'],
+                    'lavender-prince': ['--accent', '--card-net-end', '--gold']
+                };
+                const selectedPalette = paletteByTheme[currentThemeId] || paletteByTheme['macaron-prince'];
+                const baseVar = selectedPalette[safeTier % selectedPalette.length];
+                const borderVar = selectedPalette[(safeTier + 1) % selectedPalette.length];
+                const tintStrength = Math.min(28, 14 + safeTier);
+                const borderStrength = Math.min(66, 42 + safeTier);
+                return {
+                    background: `color-mix(in srgb, var(${baseVar}) ${tintStrength}%, var(--panel-bg, #FFFFFF) ${100 - tintStrength}%)`,
+                    borderColor: `color-mix(in srgb, var(${borderVar}) ${borderStrength}%, var(--header-border, #FFD1DC) ${100 - borderStrength}%)`,
+                    boxShadow: `inset 0 0 0 1px color-mix(in srgb, var(${baseVar}) ${Math.max(20, borderStrength - 16)}%, transparent ${100 - Math.max(20, borderStrength - 16)}%)`
+                };
+            };
+
             const handleAssetCategoryChange = (event) => {
                 const nextCategory = event.target.value;
                 setFormData(prev => ({
@@ -1076,7 +1223,7 @@
                         label: CATEGORIES[categoryKey].label,
                         valueHKD,
                         amount: fromHKD(valueHKD, displayCurrency),
-                        ...CATEGORY_MIX_STYLES[categoryKey]
+                        hex: categoryMixHexByKey[categoryKey] || getThemeToken('--primary', '#8B5CF6')
                     };
                 });
 
@@ -1095,11 +1242,13 @@
                         return `${row.hex} ${start}% ${cumulative}%`;
                     });
 
+                const emptyColor = getThemeToken('--panel-soft', '#FCE7F3');
+
                 return {
                     rows: rowsWithRatio,
-                    gradient: segments.length ? `conic-gradient(${segments.join(', ')})` : 'conic-gradient(#FCE7F3 0% 100%)'
+                    gradient: segments.length ? `conic-gradient(${segments.join(', ')})` : `conic-gradient(${emptyColor} 0% 100%)`
                 };
-            }, [totals.categoryBreakdownHKD, displayCurrency]);
+            }, [totals.categoryBreakdownHKD, displayCurrency, categoryMixHexByKey]);
 
             useEffect(() => {
                 const selectedExists = assetMix.rows.some(row => row.categoryKey === selectedMixCategory);
@@ -1123,7 +1272,7 @@
                 });
 
                 const totalHKD = Object.values(groupMap).reduce((sum, value) => sum + value, 0);
-                const palette = INVEST_CHART_COLORS;
+                const palette = chartThemePalette;
 
                 const rows = Object.entries(groupMap)
                     .map(([label, valueHKD], idx) => ({
@@ -1144,12 +1293,14 @@
                         return `${row.color} ${start}% ${cumulative}%`;
                     });
 
+                const emptyColor = getThemeToken('--panel-soft', '#FCE7F3');
+
                 return {
                     categoryLabel: CATEGORIES[category]?.label || '細項',
                     rows,
-                    gradient: segments.length ? `conic-gradient(${segments.join(', ')})` : 'conic-gradient(#FCE7F3 0% 100%)'
+                    gradient: segments.length ? `conic-gradient(${segments.join(', ')})` : `conic-gradient(${emptyColor} 0% 100%)`
                 };
-            }, [assets, selectedMixCategory, displayCurrency, currencyRates]);
+            }, [assets, selectedMixCategory, displayCurrency, currencyRates, chartThemePalette]);
 
             const accountStats = useMemo(() => {
                 const category = selectedStatsCategory;
@@ -1209,7 +1360,7 @@
                 const items = Object.values(grouped)
                     .map((entry, index) => ({
                         ...entry,
-                        color: INVEST_CHART_COLORS[index % INVEST_CHART_COLORS.length]
+                        color: chartThemePalette[index % chartThemePalette.length]
                     }))
                     .sort((a, b) => b.valueDisplay - a.valueDisplay);
 
@@ -1243,7 +1394,7 @@
                     selectedItem,
                     mode: statsBreakdownMode
                 };
-            }, [assets, displayCurrency, selectedStatsCategory, selectedStatsAccount, selectedStatsSegmentKey, statsBreakdownMode, currencyRates]);
+            }, [assets, displayCurrency, selectedStatsCategory, selectedStatsAccount, selectedStatsSegmentKey, statsBreakdownMode, currencyRates, chartThemePalette]);
 
             const liquidAssetOptions = useMemo(() => {
                 return assets
@@ -1852,6 +2003,7 @@
                         totals,
                         assetMix,
                         groupedAssets,
+                        themeTokens: exportThemeTokens,
                         categories: CATEGORIES,
                         formatAmount,
                         toHKD,
@@ -2010,13 +2162,31 @@
             };
 
             const netWorthTier = getNetWorthTier(totals.netWorthHKD, themeId);
-            const wealthStyleLevel = totals.netWorthHKD < 0
-                ? 'danger'
-                : totals.netWorthHKD < 1000000
-                    ? 'early'
-                    : totals.netWorthHKD < 10000000
-                        ? 'growth'
-                        : 'elite';
+            const netWorthTierIndex = Number.isInteger(netWorthTier?.tierIndex) ? netWorthTier.tierIndex : 0;
+            const netWorthCardStyle = useMemo(() => buildNetworthCardStyle(themeId, netWorthTierIndex), [themeId, netWorthTierIndex]);
+            const totalAssetsCardStyle = useMemo(() => buildSummaryCardStyle(themeId, netWorthTierIndex, 'asset'), [themeId, netWorthTierIndex]);
+            const totalLiabilitiesCardStyle = useMemo(() => buildSummaryCardStyle(themeId, netWorthTierIndex, 'liability'), [themeId, netWorthTierIndex]);
+            const overviewPanelCardStyle = useMemo(() => buildSummaryCardStyle(themeId, netWorthTierIndex, 'asset'), [themeId, netWorthTierIndex]);
+            const detailDonutCenterCardStyle = useMemo(() => buildSummaryCardStyle(themeId, netWorthTierIndex, 'growth'), [themeId, netWorthTierIndex]);
+            const selectedMixItemStyle = useMemo(() => buildMixSelectedStyle(themeId, netWorthTierIndex), [themeId, netWorthTierIndex]);
+            const accountChartCenterStyle = useMemo(() => {
+                const safeTier = Math.max(0, Math.min(13, Number(netWorthTierIndex) || 0));
+                const paletteByTheme = {
+                    'macaron-prince': ['--primary', '--accent', '--gold'],
+                    'mint-prince': ['--primary', '--accent', '--gold'],
+                    'lavender-prince': ['--accent', '--card-net-end', '--gold']
+                };
+                const selectedPalette = paletteByTheme[themeId] || paletteByTheme['macaron-prince'];
+                const mainVar = selectedPalette[safeTier % selectedPalette.length];
+                const subVar = selectedPalette[(safeTier + 1) % selectedPalette.length];
+                return {
+                    holeFill: getThemeToken('--panel-bg', '#FFFFFF'),
+                    ringStroke: getThemeToken('--header-border', '#FFFFFF'),
+                    labelFill: `color-mix(in srgb, var(${subVar}) 34%, var(--text-sub, #64748B) 66%)`,
+                    valueFill: `color-mix(in srgb, var(${mainVar}) 48%, var(--text-main, #334155) 52%)`,
+                    hintFill: `color-mix(in srgb, var(${subVar}) 42%, var(--text-sub, #64748B) 58%)`
+                };
+            }, [themeId, netWorthTierIndex]);
 
             return (
                 <div className="max-w-6xl mx-auto p-4 md:p-8">
@@ -2167,7 +2337,7 @@
                         </div>
                     </header>
 
-                    <div className="mb-8 text-xs text-slate-500 font-bold flex flex-wrap gap-x-4 gap-y-1">
+                    <div className="mb-8 text-xs theme-text-sub font-bold flex flex-wrap gap-x-4 gap-y-1">
                         <span>{priceStatus || pageText.marketAutoUpdate}</span>
                         <span>{lastPriceUpdate ? `${pageText.lastUpdated}：${lastPriceUpdate.toLocaleString()}` : pageText.noPriceYet}</span>
                         <span>{lastRateUpdate ? `${pageText.rateUpdated}：${lastRateUpdate.toLocaleString()}` : pageText.fxDefault}</span>
@@ -2175,20 +2345,20 @@
                     </div>
 
                     <section className="theme-surface p-4 sm:p-6 rounded-2xl shadow-sm mb-8">
-                        <div className="text-slate-800 font-black mb-4">{pageText.overviewTitle}</div>
+                        <div className="theme-text-main font-black mb-4">{pageText.overviewTitle}</div>
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             <div className="space-y-4">
-                                <div className={`theme-networth-card theme-networth-card--${wealthStyleLevel} p-5 rounded-2xl text-white shadow-lg`}>
+                                <div className="theme-networth-card p-5 rounded-2xl text-white shadow-lg" style={netWorthCardStyle}>
                                     <div className="theme-networth-caption text-[10px] font-black uppercase tracking-widest mb-1">{pageText.netWorth} ({displayCurrency})</div>
                                     <div className="text-3xl font-black tracking-tighter">{formatAmount(totals.netWorth)}</div>
                                     <div className="text-xs font-black theme-networth-caption mt-2">{netWorthTier.emoji} {netWorthTier.label}</div>
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
-                                    <div className={`theme-summary-card theme-summary-card--${wealthStyleLevel} p-4 rounded-xl`}>
+                                    <div className="theme-summary-card p-4 rounded-xl" style={totalAssetsCardStyle}>
                                         <div className="theme-text-sub text-[10px] font-black uppercase tracking-widest mb-1">{pageText.totalAssets}</div>
                                         <div className="text-xl font-black theme-text-main">{formatAmount(totals.assets)}</div>
                                     </div>
-                                    <div className={`theme-summary-card ${wealthStyleLevel === 'danger' ? 'theme-summary-card--danger' : `theme-summary-card--${wealthStyleLevel}`} p-4 rounded-xl`}>
+                                    <div className="theme-summary-card p-4 rounded-xl" style={totalLiabilitiesCardStyle}>
                                         <div className="theme-text-sub text-[10px] font-black uppercase tracking-widest mb-1">{pageText.totalLiabilities}</div>
                                         <div className="text-xl font-black theme-negative">{formatAmount(totals.liabilities)}</div>
                                         <div className="text-[10px] font-black theme-text-sub mt-1">{pageText.debtRatio} {totals.debtRatio.toFixed(1)}%</div>
@@ -2197,7 +2367,7 @@
                             </div>
 
                             <div className="lg:col-span-2 grid grid-cols-1 xl:grid-cols-2 gap-6 items-center">
-                                <details className={`rounded-xl p-3 theme-summary-card theme-summary-card--${wealthStyleLevel}`} open>
+                                <details className="rounded-xl p-3 theme-summary-card" style={overviewPanelCardStyle} open>
                                     <summary className="sm:hidden text-xs font-black theme-text-sub cursor-pointer list-none">{pageText.categoryMix}</summary>
                                     <div className="space-y-3 mt-3 sm:mt-0">
                                         {assetMix.rows.map(item => (
@@ -2205,14 +2375,15 @@
                                                 type="button"
                                                 key={item.categoryKey}
                                                 onClick={() => setSelectedMixCategory(item.categoryKey)}
-                                                className={`w-full text-left rounded-xl p-2 transition-all theme-mix-item ${selectedMixCategory === item.categoryKey ? `theme-mix-item--${wealthStyleLevel}-selected` : ''}`}
+                                                className="w-full text-left rounded-xl p-2 transition-all theme-mix-item"
+                                                style={selectedMixCategory === item.categoryKey ? selectedMixItemStyle : undefined}
                                             >
                                                 <div className="flex justify-between text-xs font-black theme-text-sub mb-1">
                                                     <span>{item.label}</span>
                                                     <span>{item.ratio.toFixed(1)}% · {formatAmount(item.amount)} {displayCurrency}</span>
                                                 </div>
-                                                <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                                                    <div className={`h-full ${item.bg}`} style={{ width: `${item.ratio}%` }}></div>
+                                                <div className="h-2 rounded-full theme-bar-bg overflow-hidden">
+                                                    <div className="h-full" style={{ width: `${item.ratio}%`, backgroundColor: item.hex }}></div>
                                                 </div>
                                             </button>
                                         ))}
@@ -2221,7 +2392,7 @@
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-center">
                                         <div className="w-44 h-44 sm:w-52 sm:h-52 rounded-full relative" style={{ background: detailMix.gradient }}>
-                                            <div className={`absolute inset-8 rounded-full flex items-center justify-center theme-summary-card theme-summary-card--${wealthStyleLevel}`}>
+                                            <div className="absolute inset-8 rounded-full flex items-center justify-center theme-summary-card" style={detailDonutCenterCardStyle}>
                                                 <div className="text-center">
                                                     <div className="text-[10px] theme-text-sub font-black uppercase tracking-widest">{detailMix.categoryLabel}</div>
                                                     <div className="text-sm font-black theme-text-main">{pageText.detailMix}</div>
@@ -2229,7 +2400,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <details className={`rounded-xl p-3 theme-summary-card theme-summary-card--${wealthStyleLevel}`} open>
+                                    <details className="rounded-xl p-3 theme-summary-card" style={overviewPanelCardStyle} open>
                                         <summary className="sm:hidden text-xs font-black theme-text-sub cursor-pointer list-none">{pageText.detailMix}</summary>
                                         <div className="space-y-2 mt-3 sm:mt-0">
                                             {detailMix.rows.length ? detailMix.rows.map(row => (
@@ -2270,7 +2441,7 @@
                     {financeSectionTab === 'ASSET_ACCOUNT' && (
                     <section className="theme-surface p-4 sm:p-6 rounded-2xl shadow-sm mb-8">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                            <div className="text-slate-800 font-black">{pageText.tabAssetAccount}</div>
+                            <div className="theme-text-main font-black">{pageText.tabAssetAccount}</div>
                             <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2">
                                 <select
                                     value={selectedStatsCategory}
@@ -2314,7 +2485,7 @@
                         </div>
 
                         {!accountStats.accountNames.length ? (
-                            <p className="text-sm text-slate-400 font-bold">目前此類別沒有可統計資料</p>
+                            <p className="text-sm theme-text-sub font-bold">目前此類別沒有可統計資料</p>
                         ) : (
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
                                 <div className="flex justify-center">
@@ -2325,7 +2496,7 @@
                                                 cy="130"
                                                 r="110"
                                                 fill={accountStats.segments[0].color}
-                                                stroke="#ffffff"
+                                                stroke={accountChartCenterStyle.ringStroke}
                                                 strokeWidth="2"
                                                 className="cursor-pointer"
                                                 onClick={() => setSelectedStatsSegmentKey(accountStats.segments[0].key)}
@@ -2336,7 +2507,7 @@
                                                     key={segment.key}
                                                     d={describeArc(130, 130, 110, segment.startAngle, segment.endAngle)}
                                                     fill={segment.color}
-                                                    stroke="#ffffff"
+                                                    stroke={accountChartCenterStyle.ringStroke}
                                                     strokeWidth="2"
                                                     className="cursor-pointer"
                                                     opacity={accountStats.selectedItem?.key === segment.key ? 1 : 0.8}
@@ -2344,14 +2515,14 @@
                                                 />
                                             ))
                                         )}
-                                        <circle cx="130" cy="130" r="62" fill="#ffffff" />
-                                        <text x="130" y="116" textAnchor="middle" className="fill-slate-400" style={{ fontSize: '10px', fontWeight: 800 }}>
+                                        <circle cx="130" cy="130" r="62" fill={accountChartCenterStyle.holeFill} />
+                                        <text x="130" y="116" textAnchor="middle" style={{ fontSize: '10px', fontWeight: 800, fill: accountChartCenterStyle.labelFill }}>
                                             {accountStats.selectedItem ? accountStats.selectedItem.label : (statsBreakdownMode === 'ACCOUNT' ? CATEGORIES[selectedStatsCategory].label : accountStats.currentAccount)}
                                         </text>
-                                        <text x="130" y="136" textAnchor="middle" className="fill-slate-700" style={{ fontSize: '13px', fontWeight: 900 }}>
+                                        <text x="130" y="136" textAnchor="middle" style={{ fontSize: '13px', fontWeight: 900, fill: accountChartCenterStyle.valueFill }}>
                                             {accountStats.selectedItem ? `${formatAmount(accountStats.selectedItem.valueDisplay)} ${displayCurrency}` : `${formatAmount(accountStats.total)} ${displayCurrency}`}
                                         </text>
-                                        <text x="130" y="154" textAnchor="middle" className="fill-slate-400" style={{ fontSize: '10px', fontWeight: 800 }}>
+                                        <text x="130" y="154" textAnchor="middle" style={{ fontSize: '10px', fontWeight: 800, fill: accountChartCenterStyle.hintFill }}>
                                             {accountStats.selectedItem ? `${accountStats.selectedItem.ratio.toFixed(1)}%` : tByLang('點擊區塊查看佔比', 'Click a segment to view ratio', 'セグメントをクリックして比率を表示')}
                                         </text>
                                     </svg>
@@ -2364,7 +2535,8 @@
                                                 key={segment.key}
                                                 type="button"
                                                 onClick={() => setSelectedStatsSegmentKey(segment.key)}
-                                                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all ${accountStats.selectedItem?.key === segment.key ? `theme-mix-item theme-mix-item--${wealthStyleLevel}-selected` : 'theme-surface theme-mix-item'}`}
+                                                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all ${accountStats.selectedItem?.key === segment.key ? 'theme-mix-item' : 'theme-surface theme-mix-item'}`}
+                                                style={accountStats.selectedItem?.key === segment.key ? selectedMixItemStyle : undefined}
                                             >
                                                 <div className="flex items-center gap-2 min-w-0">
                                                     <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: segment.color }}></span>
@@ -2380,7 +2552,7 @@
                                     </div>
 
                                     {accountStats.selectedItem && (
-                                        <details className={`rounded-xl p-4 theme-summary-card theme-summary-card--${wealthStyleLevel}`} open>
+                                        <details className="rounded-xl p-4 theme-summary-card" style={overviewPanelCardStyle} open>
                                             <summary className="md:hidden text-xs theme-text-sub font-black cursor-pointer list-none">已選擇項目細節</summary>
                                             <div className="mt-3 md:mt-0">
                                                 <div className="text-xs theme-text-sub font-black mb-2">已選擇項目</div>

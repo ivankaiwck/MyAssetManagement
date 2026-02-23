@@ -51,14 +51,6 @@
         BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', BNB: 'binancecoin', XRP: 'ripple', ADA: 'cardano', DOGE: 'dogecoin', DOT: 'polkadot', TRX: 'tron', LTC: 'litecoin'
     };
 
-    const CATEGORY_MIX_STYLES = {
-        LIQUID: { bg: 'bg-sky-500', hex: '#0EA5E9' },
-        INVEST: { bg: 'bg-violet-500', hex: '#8B5CF6' },
-        INSURANCE: { bg: 'bg-cyan-500', hex: '#06B6D4' },
-        FIXED: { bg: 'bg-amber-500', hex: '#F59E0B' },
-        RECEIVABLE: { bg: 'bg-indigo-500', hex: '#6366F1' },
-        LIABILITY: { bg: 'bg-rose-500', hex: '#F43F5E' }
-    };
     const CATEGORY_KEYS = Object.keys(CATEGORIES);
     const INVEST_CHART_COLORS = ['#F472B6', '#38BDF8', '#F59E0B', '#A78BFA', '#818CF8', '#F43F5E', '#22D3EE', '#FB7185'];
     const CASHFLOW_TYPES = {
@@ -104,7 +96,6 @@
         isCloudEnabled,
         CATEGORIES,
         CRYPTO_ID_MAP,
-        CATEGORY_MIX_STYLES,
         CATEGORY_KEYS,
         INVEST_CHART_COLORS,
         CASHFLOW_TYPES,

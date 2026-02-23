@@ -5,6 +5,7 @@
         totals,
         assetMix,
         groupedAssets,
+        themeTokens,
         categories,
         formatAmount,
         toHKD,
@@ -15,6 +16,14 @@
     }) {
         let reportRoot = null;
         try {
+            const token = (name, fallback) => (themeTokens && themeTokens[name]) || fallback;
+            const pageBg = token('--bg-page', '#ffffff');
+            const textMain = token('--text-main', '#0f172a');
+            const textSub = token('--text-sub', '#475569');
+            const panelBg = token('--panel-bg', '#ffffff');
+            const panelSoft = token('--panel-soft', '#f8fafc');
+            const headerBorder = token('--header-border', '#cbd5e1');
+
             if (typeof onProgress === 'function') onProgress('正在準備 PDF...');
             const jsPDF = await ensureJsPdfReady();
             const html2canvas = await ensureHtml2CanvasReady();
@@ -26,8 +35,8 @@
             reportRoot.style.left = '0';
             reportRoot.style.top = '0';
             reportRoot.style.width = '1024px';
-            reportRoot.style.background = '#ffffff';
-            reportRoot.style.color = '#0f172a';
+            reportRoot.style.background = pageBg;
+            reportRoot.style.color = textMain;
             reportRoot.style.padding = '24px';
             reportRoot.style.fontFamily = "'Noto Sans TC', sans-serif";
             reportRoot.style.opacity = '1';
@@ -39,12 +48,17 @@
             title.style.fontSize = '24px';
             title.style.fontWeight = '800';
             title.style.margin = '0 0 8px 0';
+            title.style.color = token('--primary', '#F472B6');
+            title.style.backgroundImage = `linear-gradient(90deg, ${token('--gold', '#F59E0B')}, ${token('--primary', '#F472B6')}, ${token('--accent', '#38BDF8')})`;
+            title.style.backgroundClip = 'text';
+            title.style.webkitBackgroundClip = 'text';
+            title.style.webkitTextFillColor = 'transparent';
             reportRoot.appendChild(title);
 
             const meta = document.createElement('div');
             meta.textContent = `產生時間：${new Date().toLocaleString()} ｜ 顯示幣種：${displayCurrency}`;
             meta.style.fontSize = '12px';
-            meta.style.color = '#475569';
+            meta.style.color = textSub;
             meta.style.marginBottom = '16px';
             reportRoot.appendChild(meta);
 
@@ -70,9 +84,9 @@
             const chartCard = document.createElement('div');
             chartCard.style.width = '300px';
             chartCard.style.padding = '10px';
-            chartCard.style.border = '1px solid #e2e8f0';
+            chartCard.style.border = `1px solid ${headerBorder}`;
             chartCard.style.borderRadius = '10px';
-            chartCard.style.background = '#f8fafc';
+            chartCard.style.background = panelSoft;
 
             const chartTitle = document.createElement('div');
             chartTitle.textContent = '資產配比';
@@ -97,7 +111,7 @@
             donutHole.style.position = 'absolute';
             donutHole.style.inset = '22px';
             donutHole.style.borderRadius = '999px';
-            donutHole.style.background = '#ffffff';
+            donutHole.style.background = panelBg;
             donut.appendChild(donutHole);
             chartWrap.appendChild(donut);
 
@@ -114,6 +128,7 @@
                     item.style.alignItems = 'center';
                     item.style.justifyContent = 'space-between';
                     item.style.fontSize = '10px';
+                    item.style.color = textMain;
 
                     const left = document.createElement('div');
                     left.style.display = 'flex';
@@ -131,6 +146,7 @@
 
                     const value = document.createElement('span');
                     value.textContent = `${row.ratio.toFixed(1)}%`;
+                    value.style.color = textSub;
 
                     item.appendChild(left);
                     item.appendChild(value);
@@ -161,8 +177,9 @@
                 headers.forEach(text => {
                     const th = document.createElement('th');
                     th.textContent = text;
-                    th.style.border = '1px solid #cbd5e1';
-                    th.style.background = '#f1f5f9';
+                    th.style.border = `1px solid ${headerBorder}`;
+                    th.style.background = panelSoft;
+                    th.style.color = textMain;
                     th.style.padding = '6px 8px';
                     th.style.textAlign = ['#', '筆數', '項目數', '總市值', '市值'].includes(text) ? 'right' : 'left';
                     headerRow.appendChild(th);
@@ -186,7 +203,8 @@
                     cells.forEach((value, idx) => {
                         const td = document.createElement('td');
                         td.textContent = value;
-                        td.style.border = '1px solid #cbd5e1';
+                        td.style.border = `1px solid ${headerBorder}`;
+                        td.style.color = textMain;
                         td.style.padding = '6px 8px';
                         td.style.textAlign = idx >= 2 ? 'right' : 'left';
                         row.appendChild(td);
@@ -207,8 +225,9 @@
             ['#', '類別', '細項', '帳戶', '名稱', '幣種', '市值'].forEach(text => {
                 const th = document.createElement('th');
                 th.textContent = text;
-                th.style.border = '1px solid #cbd5e1';
-                th.style.background = '#f1f5f9';
+                th.style.border = `1px solid ${headerBorder}`;
+                th.style.background = panelSoft;
+                th.style.color = textMain;
                 th.style.padding = '6px 8px';
                 th.style.textAlign = ['#', '市值'].includes(text) ? 'right' : 'left';
                 headRow.appendChild(th);
@@ -231,7 +250,8 @@
                 cells.forEach((value, i) => {
                     const td = document.createElement('td');
                     td.textContent = value;
-                    td.style.border = '1px solid #cbd5e1';
+                    td.style.border = `1px solid ${headerBorder}`;
+                    td.style.color = textMain;
                     td.style.padding = '6px 8px';
                     td.style.textAlign = (i === 0 || i === 6) ? 'right' : 'left';
                     row.appendChild(td);
@@ -246,7 +266,7 @@
             const canvas = await html2canvas(reportRoot, {
                 scale: 2,
                 useCORS: true,
-                backgroundColor: '#ffffff'
+                backgroundColor: pageBg
             });
 
             const imgData = canvas.toDataURL('image/jpeg', 0.98);
