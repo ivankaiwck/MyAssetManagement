@@ -2,7 +2,7 @@
     const THEMES = {
         'macaron-prince': {
             id: 'macaron-prince',
-            label: '馬卡龍甜點王子主題',
+            label: '馬卡龍奶油王子',
             tokens: {
                 '--bg-page': '#FFF9F5',
                 '--text-main': '#5A4A42',
@@ -28,7 +28,7 @@
         },
         'mint-prince': {
             id: 'mint-prince',
-            label: '魔法星星王子主題',
+            label: '薄荷巧克力王子',
             tokens: {
                 '--bg-page': '#FAF8FF',
                 '--text-main': '#2F4366',
@@ -54,7 +54,7 @@
         },
         'lavender-prince': {
             id: 'lavender-prince',
-            label: '海洋冒險王子主題',
+            label: '薰衣草蜂蜜王子',
             tokens: {
                 '--bg-page': '#F4FBFF',
                 '--text-main': '#355166',
