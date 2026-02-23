@@ -53,11 +53,13 @@
 
             {cashflowView === 'MONTH' ? (
                 <div className="order-1 space-y-3">
-                    <div className="md:hidden space-y-2">
+                    <div className="md:hidden">
+                        <div className="text-[10px] text-slate-400 font-black mb-2">固定顯示約 5-10 日，可上下滑動查看更多</div>
+                        <div className="space-y-2 max-h-[68vh] min-h-[52vh] overflow-y-auto pr-1 custom-scrollbar">
                         {cashflowMonthData.dayRows.map(day => (
                             <div
                                 key={day.dateKey}
-                                className={`rounded-xl border bg-white px-3 py-2.5 flex flex-col gap-1.5 ${day.entries.length > 0 ? 'border-indigo-200 ring-1 ring-indigo-100' : 'border-slate-100'}`}
+                                className={`min-h-[96px] rounded-xl border bg-white px-3 py-2.5 flex flex-col gap-1.5 ${day.entries.length > 0 ? 'border-indigo-200 ring-1 ring-indigo-100' : 'border-slate-100'}`}
                             >
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-1.5">
@@ -90,6 +92,7 @@
                                 </div>
                             </div>
                         ))}
+                        </div>
                     </div>
 
                     <div className="hidden md:block space-y-3">
