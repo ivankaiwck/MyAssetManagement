@@ -127,8 +127,9 @@
         const resolveInsurancePremiumAmount = ({ sourceData, isLifeWealthInsurance }) => {
             const basePremiumAmount = Number(sourceData.insuranceBasePremiumAmount || 0);
             const supplementaryPremiumAmount = Number(sourceData.insuranceSupplementaryPremiumAmount || 0);
-            if (isLifeWealthInsurance && (basePremiumAmount > 0 || supplementaryPremiumAmount > 0)) {
-                return basePremiumAmount + supplementaryPremiumAmount;
+            const hasSupplementary = sourceData.insuranceHasSupplementaryBenefit === 'yes';
+            if (isLifeWealthInsurance && basePremiumAmount > 0) {
+                return basePremiumAmount + (hasSupplementary ? supplementaryPremiumAmount : 0);
             }
             return Number(sourceData.premiumAmount || 0);
         };
@@ -197,6 +198,7 @@
             };
 
             if (isLifeWealthInsurance) {
+                const isInvestmentLinkedLifeSubtype = ['投資型壽險', '投資/投資相連'].includes(formData.subtype);
                 const currentPolicyYear = effectivePremiumPaidCount > 0
                     ? (isYearlyPremium ? effectivePremiumPaidCount : (Math.floor((effectivePremiumPaidCount - 1) / 12) + 1))
                     : 0;
@@ -204,7 +206,9 @@
                     startDateKey: formData.insuranceStartDate,
                     rawValue: formData.insuranceDistributionStartPolicyYear
                 });
-                const annualDistributionAmount = Number(formData.insuranceAnnualDistributionAmount || 0);
+                const annualDistributionAmount = isInvestmentLinkedLifeSubtype
+                    ? 0
+                    : Number(formData.insuranceAnnualDistributionAmount || 0);
                 const distributionPaidYears = distributionStartYear > 0 && currentPolicyYear >= distributionStartYear
                     ? (currentPolicyYear - distributionStartYear + 1)
                     : 0;
@@ -237,11 +241,30 @@
 
                 formData = {
                     ...nextFormData,
+                    insuranceHasSupplementaryBenefit: isInvestmentLinkedLifeSubtype
+                        ? 'no'
+                        : (formData.insuranceHasSupplementaryBenefit === 'yes' ? 'yes' : 'no'),
+                    insuranceSupplementaryPremiumAmount: (!isInvestmentLinkedLifeSubtype && formData.insuranceHasSupplementaryBenefit === 'yes')
+                        ? (Number(formData.insuranceSupplementaryPremiumAmount || 0) > 0 ? Number(formData.insuranceSupplementaryPremiumAmount || 0) : '')
+                        : '',
+                    insuranceSupplementaryBenefitName: (!isInvestmentLinkedLifeSubtype && formData.insuranceHasSupplementaryBenefit === 'yes')
+                        ? (formData.insuranceSupplementaryBenefitName || '')
+                        : '',
+                    insuranceSupplementaryBenefitRegion: (!isInvestmentLinkedLifeSubtype && formData.insuranceHasSupplementaryBenefit === 'yes')
+                        ? (formData.insuranceSupplementaryBenefitRegion || '')
+                        : '',
+                    insuranceSupplementaryBenefitDeductible: (!isInvestmentLinkedLifeSubtype && formData.insuranceHasSupplementaryBenefit === 'yes')
+                        ? (formData.insuranceSupplementaryBenefitDeductible || '')
+                        : '',
                     insuranceDistributionPaidYears: distributionPaidYears,
                     insuranceTotalDistributedAmount: totalDistributedAmount,
                     insuranceAccumulationBalance: distributionMode === 'accumulate' ? accumulationBalance : 0,
                     insurancePolicyValue: resolvedPolicyValue > 0 ? resolvedPolicyValue : '',
                     insurancePremiumPaymentYears: premiumPaymentYears > 0 ? premiumPaymentYears : '',
+                    insuranceDistributionStartPolicyYear: isInvestmentLinkedLifeSubtype ? '' : (formData.insuranceDistributionStartPolicyYear || ''),
+                    insuranceAnnualDistributionAmount: isInvestmentLinkedLifeSubtype ? '' : (formData.insuranceAnnualDistributionAmount || ''),
+                    insuranceDistributionMode: isInvestmentLinkedLifeSubtype ? 'cash' : distributionMode,
+                    insuranceAccumulationRate: isInvestmentLinkedLifeSubtype ? '' : (formData.insuranceAccumulationRate || ''),
                     insuranceEndDate: premiumTotalTerms > 0
                         ? calculatePremiumEndDateKey({
                             startDateKey: formData.insuranceStartDate,

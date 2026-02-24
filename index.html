@@ -454,10 +454,13 @@
                 currency: 'HKD',
                 premiumAmount: '',
                 insuranceBasePremiumAmount: '',
+                insuranceHasSupplementaryBenefit: 'no',
                 insuranceSupplementaryPremiumAmount: '',
                 insuranceSupplementaryBenefitName: '',
                 insuranceSupplementaryBenefitRegion: '',
                 insuranceSupplementaryBenefitDeductible: '',
+                insuranceInvestmentFundItems: '',
+                insuranceInvestmentStrategyNote: '',
                 premiumFrequency: 'monthly',
                 premiumPaidCount: '',
                 insuranceProvider: '',
@@ -529,10 +532,13 @@
                 costBasis: '',
                 premiumAmount: '',
                 insuranceBasePremiumAmount: '',
+                insuranceHasSupplementaryBenefit: 'no',
                 insuranceSupplementaryPremiumAmount: '',
                 insuranceSupplementaryBenefitName: '',
                 insuranceSupplementaryBenefitRegion: '',
                 insuranceSupplementaryBenefitDeductible: '',
+                insuranceInvestmentFundItems: '',
+                insuranceInvestmentStrategyNote: '',
                 premiumPaidCount: '',
                 premiumFrequency: 'monthly',
                 insuranceProvider: '',
@@ -611,10 +617,13 @@
                     insuranceBasePremiumAmount: shouldBackfillBasePremium
                         ? (asset?.premiumAmount ?? '')
                         : (asset?.insuranceBasePremiumAmount ?? ''),
+                    insuranceHasSupplementaryBenefit: asset?.insuranceHasSupplementaryBenefit === 'yes' ? 'yes' : 'no',
                     insuranceSupplementaryPremiumAmount: asset?.insuranceSupplementaryPremiumAmount ?? '',
                     insuranceSupplementaryBenefitName: asset?.insuranceSupplementaryBenefitName ?? '',
                     insuranceSupplementaryBenefitRegion: asset?.insuranceSupplementaryBenefitRegion ?? '',
-                    insuranceSupplementaryBenefitDeductible: asset?.insuranceSupplementaryBenefitDeductible ?? ''
+                    insuranceSupplementaryBenefitDeductible: asset?.insuranceSupplementaryBenefitDeductible ?? '',
+                    insuranceInvestmentFundItems: asset?.insuranceInvestmentFundItems ?? '',
+                    insuranceInvestmentStrategyNote: asset?.insuranceInvestmentStrategyNote ?? ''
                 };
             };
 
@@ -1736,6 +1745,171 @@
                 }));
             }, [cashflowForm.targetLiquidAssetId, liquidAssetOptions]);
 
+            const parseInsuranceInvestmentFundRows = (rawValue) => {
+                const lines = String(rawValue || '')
+                    .split(/\r?\n/)
+                    .map(line => line.trim())
+                    .filter(Boolean);
+                return lines.map(line => {
+                    const parts = line.split(/\||｜/).map(part => part.trim());
+                    return {
+                        allocationPercent: parts[0] || '',
+                        investmentOption: parts[1] || '',
+                        codeCurrency: parts[2] || '',
+                        profitLossPercent: parts[3] || '',
+                        balance: parts[4] || '',
+                        units: parts[5] || '',
+                        unitPrice: parts[6] || '',
+                        averagePrice: parts[7] || ''
+                    };
+                });
+            };
+
+            const serializeInsuranceInvestmentFundRows = (rows) => rows
+                .map(row => {
+                    const allocationPercent = String(row.allocationPercent || '').trim();
+                    const investmentOption = String(row.investmentOption || '').trim();
+                    const codeCurrency = String(row.codeCurrency || '').trim();
+                    const profitLossPercent = String(row.profitLossPercent || '').trim();
+                    const balance = String(row.balance || '').trim();
+                    const units = String(row.units || '').trim();
+                    const unitPrice = String(row.unitPrice || '').trim();
+                    const averagePrice = String(row.averagePrice || '').trim();
+                    if (!allocationPercent && !investmentOption && !codeCurrency && !profitLossPercent && !balance && !units && !unitPrice && !averagePrice) return '';
+                    return [allocationPercent, investmentOption, codeCurrency, profitLossPercent, balance, units, unitPrice, averagePrice].join('｜');
+                })
+                .filter(Boolean)
+                .join('\n');
+
+            const parsePositiveNumberLoose = (value) => {
+                const normalized = String(value || '').replace(/,/g, '').trim();
+                const parsed = Number(normalized);
+                return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+            };
+
+            const roundForFundField = (value) => {
+                const parsed = Number(value || 0);
+                if (!Number.isFinite(parsed)) return '';
+                return String(Number(parsed.toFixed(6)));
+            };
+
+            const normalizeComputedInvestmentRows = (rows) => {
+                const normalizedRows = (Array.isArray(rows) ? rows : []).map(row => {
+                    const units = parsePositiveNumberLoose(row.units);
+                    const unitPrice = parsePositiveNumberLoose(row.unitPrice);
+                    const averagePrice = parsePositiveNumberLoose(row.averagePrice);
+                    const computedBalance = units > 0 && unitPrice > 0
+                        ? (units * unitPrice)
+                        : parsePositiveNumberLoose(row.balance);
+                    const computedPnlPercent = averagePrice > 0 && unitPrice > 0
+                        ? (((unitPrice - averagePrice) / averagePrice) * 100)
+                        : parsePositiveNumberLoose(row.profitLossPercent);
+                    return {
+                        ...row,
+                        balance: roundForFundField(computedBalance),
+                        profitLossPercent: roundForFundField(computedPnlPercent)
+                    };
+                });
+
+                const totalBalance = normalizedRows.reduce((sum, row) => sum + parsePositiveNumberLoose(row.balance), 0);
+                return normalizedRows.map(row => {
+                    const balance = parsePositiveNumberLoose(row.balance);
+                    const allocationPercent = totalBalance > 0 ? ((balance / totalBalance) * 100) : 0;
+                    return {
+                        ...row,
+                        allocationPercent: roundForFundField(allocationPercent)
+                    };
+                });
+            };
+
+            const updateInsuranceInvestmentFundItems = (assetId, updater) => {
+                setAssets(prevAssets => prevAssets.map(asset => {
+                    if (!asset || asset.id !== assetId) return asset;
+                    if (asset.category !== 'INSURANCE') return asset;
+                    const rows = parseInsuranceInvestmentFundRows(asset.insuranceInvestmentFundItems || '');
+                    const nextRowsRaw = typeof updater === 'function' ? updater(rows) : rows;
+                    const nextRowsSource = Array.isArray(nextRowsRaw) && nextRowsRaw.length > 0
+                        ? nextRowsRaw
+                        : [{ allocationPercent: '', investmentOption: '', codeCurrency: '', profitLossPercent: '', balance: '', units: '', unitPrice: '', averagePrice: '' }];
+                    const nextRows = normalizeComputedInvestmentRows(nextRowsSource);
+
+                    const nextPolicyValue = nextRows.reduce((sum, row) => {
+                        const balance = parsePositiveNumberLoose(row.balance);
+                        const units = parsePositiveNumberLoose(row.units);
+                        const unitPrice = parsePositiveNumberLoose(row.unitPrice);
+                        if (balance > 0) return sum + balance;
+                        if (units > 0 && unitPrice > 0) return sum + (units * unitPrice);
+                        return sum;
+                    }, 0);
+
+                    return {
+                        ...asset,
+                        insuranceInvestmentFundItems: serializeInsuranceInvestmentFundRows(nextRows),
+                        insurancePolicyValue: Number(nextPolicyValue.toFixed(6)),
+                        currentPrice: Number(nextPolicyValue.toFixed(6)),
+                        quantity: 1
+                    };
+                }));
+            };
+
+            const handleInsuranceFundRowFieldChange = (assetId, rowIndex, field, value) => {
+                updateInsuranceInvestmentFundItems(assetId, rows => rows.map((row, index) => (
+                    index === rowIndex ? { ...row, [field]: value } : row
+                )));
+            };
+
+            const handleInsuranceFundAddRow = (assetId) => {
+                updateInsuranceInvestmentFundItems(assetId, rows => ([
+                    ...rows,
+                    { allocationPercent: '', investmentOption: '', codeCurrency: '', profitLossPercent: '', balance: '', units: '', unitPrice: '', averagePrice: '' }
+                ]));
+            };
+
+            const handleInsuranceFundAppendRowWithData = (assetId, rowData) => {
+                const nextRow = {
+                    allocationPercent: String(rowData?.allocationPercent || ''),
+                    investmentOption: String(rowData?.investmentOption || ''),
+                    codeCurrency: String(rowData?.codeCurrency || ''),
+                    profitLossPercent: String(rowData?.profitLossPercent || ''),
+                    balance: String(rowData?.balance || ''),
+                    units: String(rowData?.units || ''),
+                    unitPrice: String(rowData?.unitPrice || ''),
+                    averagePrice: String(rowData?.averagePrice || '')
+                };
+                updateInsuranceInvestmentFundItems(assetId, rows => ([...rows, nextRow]));
+            };
+
+            const handleInsuranceFundRemoveRow = (assetId, rowIndex) => {
+                updateInsuranceInvestmentFundItems(assetId, rows => rows.filter((_, index) => index !== rowIndex));
+            };
+
+            const handleInsuranceFundMoveRow = (assetId, rowIndex, direction) => {
+                updateInsuranceInvestmentFundItems(assetId, rows => {
+                    const targetIndex = rowIndex + direction;
+                    if (targetIndex < 0 || targetIndex >= rows.length) return rows;
+                    const nextRows = [...rows];
+                    const [moved] = nextRows.splice(rowIndex, 1);
+                    nextRows.splice(targetIndex, 0, moved);
+                    return nextRows;
+                });
+            };
+
+            const handleInsuranceFundDuplicateRow = (assetId, rowIndex) => {
+                updateInsuranceInvestmentFundItems(assetId, rows => {
+                    const source = rows[rowIndex];
+                    if (!source) return rows;
+                    const nextRows = [...rows];
+                    nextRows.splice(rowIndex + 1, 0, { ...source });
+                    return nextRows;
+                });
+            };
+
+            const handleInsuranceFundClearRows = (assetId) => {
+                updateInsuranceInvestmentFundItems(assetId, () => ([
+                    { allocationPercent: '', investmentOption: '', codeCurrency: '', profitLossPercent: '', balance: '', units: '', unitPrice: '', averagePrice: '' }
+                ]));
+            };
+
             useEffect(() => {
                 const result = applyAutoCashflowPostings({
                     assets,
@@ -1749,7 +1923,113 @@
                 if (!result) return;
 
                 if (result.updated) {
-                    setAssets(result.nextAssets);
+                    const previousPostingKeySet = new Set(Object.keys(cashflowAppliedPostings || {}));
+                    const newlyAppliedPostingKeys = Object.keys(result.nextAppliedPostings || {}).filter(key => !previousPostingKeySet.has(key));
+                    const entryById = {};
+                    cashflowEntries.forEach(entry => {
+                        if (!entry || !entry.id) return;
+                        entryById[entry.id] = entry;
+                    });
+
+                    const nextAssetsWithInvestmentLifecycle = [...result.nextAssets];
+                    const insuranceAssetIndexMap = {};
+                    nextAssetsWithInvestmentLifecycle.forEach((asset, index) => {
+                        if (asset.category === 'INSURANCE') insuranceAssetIndexMap[asset.id] = index;
+                    });
+
+                    newlyAppliedPostingKeys.forEach(postingKey => {
+                        const posting = result.nextAppliedPostings?.[postingKey];
+                        if (!posting || typeof posting !== 'object') return;
+                        const entryId = typeof posting.entryId === 'string' ? posting.entryId : '';
+                        const sourceEntry = entryById[entryId];
+                        if (!sourceEntry || sourceEntry.linkedSource !== 'INSURANCE_AUTO') return;
+
+                        const linkedAssetId = sourceEntry.linkedAssetId || '';
+                        const insuranceIndex = insuranceAssetIndexMap[linkedAssetId];
+                        if (!Number.isInteger(insuranceIndex)) return;
+
+                        const insuranceAsset = nextAssetsWithInvestmentLifecycle[insuranceIndex];
+                        if (!insuranceAsset || insuranceAsset.category !== 'INSURANCE') return;
+                        const isInvestmentLinkedSubtype = ['投資型壽險', '投資/投資相連'].includes(insuranceAsset.subtype);
+                        if (!isInvestmentLinkedSubtype) return;
+
+                        const rows = parseInsuranceInvestmentFundRows(insuranceAsset.insuranceInvestmentFundItems || '');
+                        if (!rows.length) return;
+
+                        const entryAmount = Math.abs(Number(sourceEntry.amount || 0));
+                        if (!Number.isFinite(entryAmount) || entryAmount <= 0) return;
+                        const entryCurrency = sourceEntry.currency || insuranceAsset.currency || 'HKD';
+                        const policyCurrency = insuranceAsset.currency || 'HKD';
+                        const investmentAmount = fromHKD(toHKD(entryAmount, entryCurrency), policyCurrency);
+                        if (!Number.isFinite(investmentAmount) || investmentAmount <= 0) return;
+
+                        const normalizedRowsForAllocation = normalizeComputedInvestmentRows(rows);
+                        const positiveAllocationTotal = normalizedRowsForAllocation.reduce((acc, row) => {
+                            return acc + parsePositiveNumberLoose(row.allocationPercent);
+                        }, 0);
+                        const fallbackRatio = normalizedRowsForAllocation.length > 0 ? (1 / normalizedRowsForAllocation.length) : 0;
+
+                        let hasAppliedPurchase = false;
+                        const nextRowsBeforeNormalize = normalizedRowsForAllocation.map(row => {
+                            const allocationPercent = parsePositiveNumberLoose(row.allocationPercent);
+                            const ratio = positiveAllocationTotal > 0
+                                ? (allocationPercent > 0 ? (allocationPercent / positiveAllocationTotal) : 0)
+                                : fallbackRatio;
+                            const allocationAmount = investmentAmount * ratio;
+                            if (!Number.isFinite(allocationAmount) || allocationAmount <= 0) return row;
+
+                            const latestUnitPrice = parsePositiveNumberLoose(row.unitPrice) || parsePositiveNumberLoose(row.averagePrice);
+                            if (!Number.isFinite(latestUnitPrice) || latestUnitPrice <= 0) return row;
+
+                            const previousUnits = parsePositiveNumberLoose(row.units);
+                            const previousAveragePrice = parsePositiveNumberLoose(row.averagePrice);
+                            const previousCost = previousUnits * previousAveragePrice;
+
+                            const purchasedUnits = allocationAmount / latestUnitPrice;
+                            const nextUnits = previousUnits + purchasedUnits;
+                            const nextCost = previousCost + allocationAmount;
+                            const nextAveragePrice = nextUnits > 0 ? (nextCost / nextUnits) : 0;
+                            const nextBalance = nextUnits * latestUnitPrice;
+                            const nextProfitLossPercent = nextAveragePrice > 0
+                                ? ((latestUnitPrice - nextAveragePrice) / nextAveragePrice) * 100
+                                : 0;
+
+                            hasAppliedPurchase = true;
+                            return {
+                                ...row,
+                                units: roundForFundField(nextUnits),
+                                averagePrice: roundForFundField(nextAveragePrice),
+                                unitPrice: roundForFundField(latestUnitPrice),
+                                balance: roundForFundField(nextBalance),
+                                profitLossPercent: roundForFundField(nextProfitLossPercent)
+                            };
+                        });
+
+                        if (!hasAppliedPurchase) return;
+                        const nextRows = normalizeComputedInvestmentRows(nextRowsBeforeNormalize);
+
+                        const policyValueByRows = nextRows.reduce((sum, row) => {
+                            const units = parsePositiveNumberLoose(row.units);
+                            const unitPrice = parsePositiveNumberLoose(row.unitPrice);
+                            const balance = parsePositiveNumberLoose(row.balance);
+                            if (balance > 0) return sum + balance;
+                            if (units > 0 && unitPrice > 0) return sum + (units * unitPrice);
+                            return sum;
+                        }, 0);
+                        const previousCostBasis = Number(insuranceAsset.costBasis || 0);
+
+                        nextAssetsWithInvestmentLifecycle[insuranceIndex] = {
+                            ...insuranceAsset,
+                            insuranceInvestmentFundItems: serializeInsuranceInvestmentFundRows(nextRows),
+                            insurancePolicyValue: Number(policyValueByRows.toFixed(6)),
+                            currentPrice: Number(policyValueByRows.toFixed(6)),
+                            quantity: 1,
+                            costBasis: Number((Math.max(0, previousCostBasis) + investmentAmount).toFixed(6)),
+                            insuranceLastInvestmentDate: parseOccurrenceDateFromPostingKey(postingKey) || ''
+                        };
+                    });
+
+                    setAssets(nextAssetsWithInvestmentLifecycle);
                     setCashflowAppliedOccurrenceKeys(result.nextAppliedOccurrenceKeys);
                     setCashflowAppliedPostings(result.nextAppliedPostings);
                     setPriceStatus(getCashflowAutoAppliedMessage(pageLanguage, result.appliedCount));
@@ -2632,6 +2912,7 @@
                 const shouldEnableDistributionRule = Boolean(
                     needsPremium
                     && isLifeWealthInsuranceForm
+                    && !['投資型壽險', '投資/投資相連'].includes(formData.subtype)
                     && formData.insuranceDistributionMode === 'cash'
                     && (Number(formData.insuranceAnnualDistributionAmount) || 0) > 0
                     && (Number(formData.insuranceDistributionStartPolicyYear) || 0) >= 1
@@ -2641,8 +2922,9 @@
                 const resolvedPremiumAmount = (() => {
                     const basePremiumAmount = Number(formData.insuranceBasePremiumAmount || 0);
                     const supplementaryPremiumAmount = Number(formData.insuranceSupplementaryPremiumAmount || 0);
-                    if (isLifeWealthInsuranceForm && (basePremiumAmount > 0 || supplementaryPremiumAmount > 0)) {
-                        return basePremiumAmount + supplementaryPremiumAmount;
+                    const hasSupplementary = formData.insuranceHasSupplementaryBenefit === 'yes';
+                    if (isLifeWealthInsuranceForm && basePremiumAmount > 0) {
+                        return basePremiumAmount + (hasSupplementary ? supplementaryPremiumAmount : 0);
                     }
                     return Number(formData.premiumAmount || 0);
                 })();
@@ -3039,6 +3321,14 @@
                             insuranceAutoPaidCountByAssetId={insuranceAutoPaidCountByAssetId}
                             insurancePartialWithdrawalStatsByAssetId={insurancePartialWithdrawalStatsByAssetId}
                             CASHFLOW_FREQUENCIES={CASHFLOW_FREQUENCIES}
+                            onInsuranceFundRowFieldChange={handleInsuranceFundRowFieldChange}
+                            onInsuranceFundAppendRowWithData={handleInsuranceFundAppendRowWithData}
+                            onInsuranceFundRemoveRow={handleInsuranceFundRemoveRow}
+                            onInsuranceFundMoveRow={handleInsuranceFundMoveRow}
+                            onInsuranceFundDuplicateRow={handleInsuranceFundDuplicateRow}
+                            onInsuranceFundClearRows={handleInsuranceFundClearRows}
+                            fundCurrencyOptions={orderedCurrencies}
+                            chartPalette={detailMixPalette}
                         />
                     )}
 

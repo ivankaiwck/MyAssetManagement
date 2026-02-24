@@ -64,6 +64,115 @@
         const partialWithdrawalAmountInput = Number(formData.insurancePartialWithdrawalAmount || 0);
         const partialWithdrawalMaxAmount = Math.max(0, Number(formData.insurancePolicyValue || 0) + Number(partialWithdrawalEditRecord?.amount || 0));
         const isPartialWithdrawalOverLimit = partialWithdrawalAmountInput > 0 && partialWithdrawalAmountInput > partialWithdrawalMaxAmount;
+        const isInvestmentLinkedLifeSubtype = ['投資型壽險', '投資/投資相連'].includes(formData.subtype);
+        const hasSupplementaryBenefit = formData.insuranceHasSupplementaryBenefit === 'yes';
+        const parseInvestmentFundRows = (rawValue) => {
+            const lines = String(rawValue || '')
+                .split(/\r?\n/)
+                .map(line => line.trim())
+                .filter(Boolean);
+            return lines.map(line => {
+                const parts = line.split(/\||｜/).map(part => part.trim());
+                return {
+                    allocationPercent: parts[0] || '',
+                    investmentOption: parts[1] || '',
+                    codeCurrency: parts[2] || '',
+                    profitLossPercent: parts[3] || '',
+                    balance: parts[4] || '',
+                    units: parts[5] || '',
+                    unitPrice: parts[6] || '',
+                    averagePrice: parts[7] || ''
+                };
+            });
+        };
+        const serializeInvestmentFundRows = (rows) => rows
+            .map(row => {
+                const allocationPercent = (row.allocationPercent || '').trim();
+                const investmentOption = (row.investmentOption || '').trim();
+                const codeCurrency = (row.codeCurrency || '').trim();
+                const profitLossPercent = (row.profitLossPercent || '').trim();
+                const balance = (row.balance || '').trim();
+                const units = (row.units || '').trim();
+                const unitPrice = (row.unitPrice || '').trim();
+                const averagePrice = (row.averagePrice || '').trim();
+                if (!allocationPercent && !investmentOption && !codeCurrency && !profitLossPercent && !balance && !units && !unitPrice && !averagePrice) return '';
+                return [allocationPercent, investmentOption, codeCurrency, profitLossPercent, balance, units, unitPrice, averagePrice].join('｜');
+            })
+            .filter(Boolean)
+            .join('\n');
+        const investmentFundRows = (() => {
+            const parsed = parseInvestmentFundRows(formData.insuranceInvestmentFundItems || '');
+            return parsed.length > 0
+                ? parsed
+                : [{ allocationPercent: '', investmentOption: '', codeCurrency: '', profitLossPercent: '', balance: '', units: '', unitPrice: '', averagePrice: '' }];
+        })();
+        const syncInvestmentFundRows = (rows) => {
+            const nextValue = serializeInvestmentFundRows(rows);
+            updateFormField('insuranceInvestmentFundItems')({ target: { value: nextValue } });
+        };
+        const updateInvestmentFundRowField = (rowIndex, key, value) => {
+            const nextRows = investmentFundRows.map((row, index) => (
+                index === rowIndex
+                    ? { ...row, [key]: value }
+                    : row
+            ));
+            syncInvestmentFundRows(nextRows);
+        };
+        const addInvestmentFundRow = () => {
+            syncInvestmentFundRows([...investmentFundRows, { allocationPercent: '', investmentOption: '', codeCurrency: '', profitLossPercent: '', balance: '', units: '', unitPrice: '', averagePrice: '' }]);
+        };
+        const addMultipleInvestmentFundRows = (count = 1) => {
+            const safeCount = Math.max(1, Math.min(20, Number(count) || 1));
+            const appendedRows = Array.from({ length: safeCount }, () => ({ allocationPercent: '', investmentOption: '', codeCurrency: '', profitLossPercent: '', balance: '', units: '', unitPrice: '', averagePrice: '' }));
+            syncInvestmentFundRows([...investmentFundRows, ...appendedRows]);
+        };
+        const removeInvestmentFundRow = (rowIndex) => {
+            const nextRows = investmentFundRows.filter((_, index) => index !== rowIndex);
+            syncInvestmentFundRows(nextRows.length > 0 ? nextRows : [{ allocationPercent: '', investmentOption: '', codeCurrency: '', profitLossPercent: '', balance: '', units: '', unitPrice: '', averagePrice: '' }]);
+        };
+        const duplicateInvestmentFundRow = (rowIndex) => {
+            const sourceRow = investmentFundRows[rowIndex];
+            if (!sourceRow) return;
+            const nextRows = [...investmentFundRows];
+            nextRows.splice(rowIndex + 1, 0, { ...sourceRow });
+            syncInvestmentFundRows(nextRows);
+        };
+        const moveInvestmentFundRow = (rowIndex, direction) => {
+            const targetIndex = rowIndex + direction;
+            if (targetIndex < 0 || targetIndex >= investmentFundRows.length) return;
+            const nextRows = [...investmentFundRows];
+            const [moved] = nextRows.splice(rowIndex, 1);
+            nextRows.splice(targetIndex, 0, moved);
+            syncInvestmentFundRows(nextRows);
+        };
+        const clearInvestmentFundRows = () => {
+            syncInvestmentFundRows([{ allocationPercent: '', investmentOption: '', codeCurrency: '', profitLossPercent: '', balance: '', units: '', unitPrice: '', averagePrice: '' }]);
+        };
+        const parseNumberLoose = (value) => {
+            const normalized = String(value || '').replace(/,/g, '').trim();
+            const parsed = Number(normalized);
+            return Number.isFinite(parsed) ? parsed : 0;
+        };
+        const investmentFundComputedRows = investmentFundRows.map(row => {
+            const units = parseNumberLoose(row.units);
+            const unitPrice = parseNumberLoose(row.unitPrice);
+            const averagePrice = parseNumberLoose(row.averagePrice);
+            const estimatedMarketValue = units * unitPrice;
+            const estimatedCostValue = units * averagePrice;
+            const estimatedPnL = estimatedMarketValue - estimatedCostValue;
+            return {
+                ...row,
+                estimatedMarketValue,
+                estimatedCostValue,
+                estimatedPnL
+            };
+        });
+        const investmentFundTotals = investmentFundComputedRows.reduce((acc, row) => {
+            acc.market += row.estimatedMarketValue;
+            acc.cost += row.estimatedCostValue;
+            acc.pnl += row.estimatedPnL;
+            return acc;
+        }, { market: 0, cost: 0, pnl: 0 });
 
         const autoPremiumPaidCount = (() => {
             if (!needsPremium) return 0;
@@ -118,7 +227,7 @@
         const lifeBasePremiumAmount = Number(formData.insuranceBasePremiumAmount || 0);
         const lifeSupplementaryPremiumAmount = Number(formData.insuranceSupplementaryPremiumAmount || 0);
         const resolvedPremiumPerTerm = isLifeWealthInsuranceForm && (lifeBasePremiumAmount > 0 || lifeSupplementaryPremiumAmount > 0)
-            ? (lifeBasePremiumAmount + lifeSupplementaryPremiumAmount)
+            ? (lifeBasePremiumAmount + (hasSupplementaryBenefit ? lifeSupplementaryPremiumAmount : 0))
             : (Number(formData.premiumAmount) || 0);
         const normalizeDistributionStartPolicyYear = ({ startDateKey, rawValue }) => {
             const parsedRaw = Number(rawValue || 0);
@@ -152,7 +261,7 @@
             startDateKey: formData.insuranceStartDate,
             rawValue: formData.insuranceDistributionStartPolicyYear
         });
-        const annualDistributionAmount = Number(formData.insuranceAnnualDistributionAmount || 0);
+        const annualDistributionAmount = isInvestmentLinkedLifeSubtype ? 0 : Number(formData.insuranceAnnualDistributionAmount || 0);
         const distributionPaidYears = distributionStartYear > 0 && currentPolicyYear >= distributionStartYear
             ? (currentPolicyYear - distributionStartYear + 1)
             : 0;
@@ -557,7 +666,16 @@
                                         <input required type="number" step="any" className={MODAL_INPUT_CLASS} value={formData.premiumAmount} onChange={updateFormField('premiumAmount')} />
                                     )}
                                 </div>
-                                {isLifeWealthInsuranceForm && (
+                                {isLifeWealthInsuranceForm && !isInvestmentLinkedLifeSubtype && (
+                                    <div className="space-y-1">
+                                        <label className={FIELD_LABEL_CLASS}>{tByLang('是否有附加保障', 'Has Supplementary Benefit', '特約の有無')}</label>
+                                        <select className={MODAL_INPUT_CLASS} value={formData.insuranceHasSupplementaryBenefit || 'no'} onChange={updateFormField('insuranceHasSupplementaryBenefit')}>
+                                            <option value="no">{tByLang('沒有', 'No', 'なし')}</option>
+                                            <option value="yes">{tByLang('有', 'Yes', 'あり')}</option>
+                                        </select>
+                                    </div>
+                                )}
+                                {isLifeWealthInsuranceForm && !isInvestmentLinkedLifeSubtype && hasSupplementaryBenefit && (
                                     <div className="space-y-1">
                                         <label className={FIELD_LABEL_CLASS}>{tByLang('附加保障每期保費（選填）', 'Supplementary Premium per Term (Optional)', '特約の各期保険料（任意）')}</label>
                                         <input type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.insuranceSupplementaryPremiumAmount || ''} onChange={updateFormField('insuranceSupplementaryPremiumAmount')} />
@@ -667,18 +785,38 @@
                                             <label className={FIELD_LABEL_CLASS}>{translate('保單號碼 (選填)')}</label>
                                             <input type="text" className={MODAL_INPUT_CLASS} value={formData.insurancePolicyNumber || ''} onChange={updateFormField('insurancePolicyNumber')} />
                                         </div>
-                                        <div className="space-y-1 md:col-span-2">
-                                            <label className={FIELD_LABEL_CLASS}>{tByLang('附加保障名稱（選填）', 'Supplementary Benefit Name (Optional)', '特約名称（任意）')}</label>
-                                            <input type="text" className={MODAL_INPUT_CLASS} value={formData.insuranceSupplementaryBenefitName || ''} onChange={updateFormField('insuranceSupplementaryBenefitName')} />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className={FIELD_LABEL_CLASS}>{tByLang('附加保障地區（選填）', 'Supplementary Benefit Region (Optional)', '特約エリア（任意）')}</label>
-                                            <input type="text" className={MODAL_INPUT_CLASS} value={formData.insuranceSupplementaryBenefitRegion || ''} onChange={updateFormField('insuranceSupplementaryBenefitRegion')} />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className={FIELD_LABEL_CLASS}>{tByLang('附加保障自付費（選填）', 'Supplementary Deductible (Optional)', '特約自己負担額（任意）')}</label>
-                                            <input type="text" className={MODAL_INPUT_CLASS} value={formData.insuranceSupplementaryBenefitDeductible || ''} onChange={updateFormField('insuranceSupplementaryBenefitDeductible')} placeholder={tByLang('例如：$3,125', 'e.g. $3,125', '例：$3,125')} />
-                                        </div>
+                                        {!isInvestmentLinkedLifeSubtype && hasSupplementaryBenefit && (
+                                            <>
+                                                <div className="space-y-1 md:col-span-2">
+                                                    <label className={FIELD_LABEL_CLASS}>{tByLang('附加保障名稱（選填）', 'Supplementary Benefit Name (Optional)', '特約名称（任意）')}</label>
+                                                    <input type="text" className={MODAL_INPUT_CLASS} value={formData.insuranceSupplementaryBenefitName || ''} onChange={updateFormField('insuranceSupplementaryBenefitName')} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className={FIELD_LABEL_CLASS}>{tByLang('附加保障地區（選填）', 'Supplementary Benefit Region (Optional)', '特約エリア（任意）')}</label>
+                                                    <input type="text" className={MODAL_INPUT_CLASS} value={formData.insuranceSupplementaryBenefitRegion || ''} onChange={updateFormField('insuranceSupplementaryBenefitRegion')} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className={FIELD_LABEL_CLASS}>{tByLang('附加保障自付費（選填）', 'Supplementary Deductible (Optional)', '特約自己負担額（任意）')}</label>
+                                                    <input type="text" className={MODAL_INPUT_CLASS} value={formData.insuranceSupplementaryBenefitDeductible || ''} onChange={updateFormField('insuranceSupplementaryBenefitDeductible')} placeholder={tByLang('例如：$3,125', 'e.g. $3,125', '例：$3,125')} />
+                                                </div>
+                                            </>
+                                        )}
+                                        {isInvestmentLinkedLifeSubtype && (
+                                            <>
+                                                <div className="space-y-1 md:col-span-2">
+                                                    <label className={FIELD_LABEL_CLASS}>{tByLang('投資策略備註（選填）', 'Investment Strategy Note (Optional)', '運用方針メモ（任意）')}</label>
+                                                    <input type="text" className={MODAL_INPUT_CLASS} value={formData.insuranceInvestmentStrategyNote || ''} onChange={updateFormField('insuranceInvestmentStrategyNote')} />
+                                                </div>
+                                                <div className="space-y-1 md:col-span-2">
+                                                    <label className={FIELD_LABEL_CLASS}>{tByLang('基金子項目管理', 'Fund Item Management', 'ファンド項目管理')}</label>
+                                                    <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-2 text-[10px] font-black text-indigo-700">
+                                                        {editingId
+                                                            ? tByLang('請到「資產詳細列表」該保單下方管理基金欄位與操作。', 'Manage fund columns and actions under this policy in Asset Detail List.', '資産詳細リストの該当保険の下でファンド項目を管理してください。')
+                                                            : tByLang('新增保單時先不直接新增基金，儲存後請到「資產詳細列表」管理。', 'Direct fund creation is disabled during create. Save first, then manage in Asset Detail List.', '新規作成時はファンド追加不可です。保存後に資産詳細リストで管理してください。')}
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
                                         <div className="space-y-1">
                                             <label className={FIELD_LABEL_CLASS}>{translate('保額/名義金額 (選填)')}</label>
                                             <input type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.insuranceCoverageAmount || ''} onChange={updateFormField('insuranceCoverageAmount')} />
@@ -746,24 +884,28 @@
                                                 />
                                             </div>
                                         )}
-                                        <div className="space-y-1">
-                                            <label className={FIELD_LABEL_CLASS}>{tByLang('派發開始保單年度/年份 (選填)', 'Distribution Start Policy Year / Calendar Year (Optional)', '配当開始の保険年度/西暦（任意）')}</label>
-                                            <input type="number" step="1" min="1" className={MODAL_INPUT_CLASS} value={formData.insuranceDistributionStartPolicyYear || ''} onChange={updateFormField('insuranceDistributionStartPolicyYear')} />
-                                            <div className="text-[10px] text-slate-400 font-bold">
-                                                {tByLang('可填保單年度（例：6）或西元年份（例：2025）', 'You can enter policy year (e.g. 6) or calendar year (e.g. 2025)', '保険年度（例：6）または西暦（例：2025）を入力できます')}
-                                            </div>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className={FIELD_LABEL_CLASS}>{translate('每年派發金額 (選填)')}</label>
-                                            <input type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.insuranceAnnualDistributionAmount || ''} onChange={updateFormField('insuranceAnnualDistributionAmount')} />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className={FIELD_LABEL_CLASS}>{translate('派發處理方式')}</label>
-                                            <select className={MODAL_INPUT_CLASS} value={distributionMode} onChange={updateFormField('insuranceDistributionMode')}>
-                                                <option value="cash">{translate('直接入帳')}</option>
-                                                <option value="accumulate">{translate('積存生息')}</option>
-                                            </select>
-                                        </div>
+                                        {!isInvestmentLinkedLifeSubtype && (
+                                            <>
+                                                <div className="space-y-1">
+                                                    <label className={FIELD_LABEL_CLASS}>{tByLang('派發開始保單年度/年份 (選填)', 'Distribution Start Policy Year / Calendar Year (Optional)', '配当開始の保険年度/西暦（任意）')}</label>
+                                                    <input type="number" step="1" min="1" className={MODAL_INPUT_CLASS} value={formData.insuranceDistributionStartPolicyYear || ''} onChange={updateFormField('insuranceDistributionStartPolicyYear')} />
+                                                    <div className="text-[10px] text-slate-400 font-bold">
+                                                        {tByLang('可填保單年度（例：6）或西元年份（例：2025）', 'You can enter policy year (e.g. 6) or calendar year (e.g. 2025)', '保険年度（例：6）または西暦（例：2025）を入力できます')}
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className={FIELD_LABEL_CLASS}>{translate('每年派發金額 (選填)')}</label>
+                                                    <input type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.insuranceAnnualDistributionAmount || ''} onChange={updateFormField('insuranceAnnualDistributionAmount')} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className={FIELD_LABEL_CLASS}>{translate('派發處理方式')}</label>
+                                                    <select className={MODAL_INPUT_CLASS} value={distributionMode} onChange={updateFormField('insuranceDistributionMode')}>
+                                                        <option value="cash">{translate('直接入帳')}</option>
+                                                        <option value="accumulate">{translate('積存生息')}</option>
+                                                    </select>
+                                                </div>
+                                            </>
+                                        )}
                                         <div className="space-y-1">
                                             <label className={FIELD_LABEL_CLASS}>{translate('總繳費期數上限（自動）')}</label>
                                             <div className={MODAL_OUTPUT_CLASS}>{premiumTotalTerms > 0 ? premiumTotalTerms : '--'}</div>

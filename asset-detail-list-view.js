@@ -78,7 +78,375 @@
         }
         return normalizedRaw;
     };
+    const parseNumberLoose = (value) => {
+        const normalized = String(value || '').replace(/,/g, '').trim();
+        const parsed = Number(normalized);
+        return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const splitFundCodeCurrency = (rawValue, currencyOptions = []) => {
+        const raw = String(rawValue || '').trim();
+        if (!raw) return { fundCode: '', currency: '' };
+        const parts = raw.split(/\s*[·｜|]\s*/).map(part => part.trim()).filter(Boolean);
+        if (parts.length >= 2) {
+            const currency = parts[parts.length - 1].toUpperCase();
+            return {
+                fundCode: parts.slice(0, -1).join(' · '),
+                currency: currencyOptions.includes(currency) ? currency : currency
+            };
+        }
+        const upperRaw = raw.toUpperCase();
+        if (currencyOptions.includes(upperRaw)) return { fundCode: '', currency: upperRaw };
+        return { fundCode: raw, currency: '' };
+    };
+    const buildFundCodeCurrency = (fundCode, currency) => {
+        const codeText = String(fundCode || '').trim();
+        const currencyText = String(currency || '').trim().toUpperCase();
+        if (codeText && currencyText) return `${codeText} · ${currencyText}`;
+        return codeText || currencyText;
+    };
+    const parseInvestmentFundRows = (rawValue) => {
+        return String(rawValue || '')
+            .split(/\r?\n/)
+            .map(line => line.trim())
+            .filter(Boolean)
+            .map(line => {
+                const parts = line.split(/\||｜/).map(part => part.trim());
+                const { fundCode, currency } = splitFundCodeCurrency(parts[2] || '');
+                const units = parseNumberLoose(parts[5]);
+                const unitPrice = parseNumberLoose(parts[6]);
+                const averagePrice = parseNumberLoose(parts[7]);
+                const balanceFromInput = parseNumberLoose(parts[4]);
+                const balance = balanceFromInput > 0 ? balanceFromInput : (units * unitPrice);
+                const pnl = units > 0 ? (units * (unitPrice - averagePrice)) : 0;
+                return {
+                    allocationPercent: parts[0] || '',
+                    investmentOption: parts[1] || '',
+                    codeCurrency: parts[2] || '',
+                    fundCode,
+                    currency,
+                    profitLossPercent: parts[3] || '',
+                    balanceRaw: parts[4] || '',
+                    unitsRaw: parts[5] || '',
+                    unitPriceRaw: parts[6] || '',
+                    averagePriceRaw: parts[7] || '',
+                    balance,
+                    units,
+                    unitPrice,
+                    averagePrice,
+                    pnl
+                };
+            });
+    };
     const PAID_OFF_BADGE_CLASS = 'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
+
+    const InvestmentFundManagerSection = ({
+        item,
+        investmentFundRows,
+        tByLang,
+        formatAmount,
+        premiumTotalAmount = 0,
+        toHKD,
+        fromHKD,
+        displayCurrency,
+        onInsuranceFundRowFieldChange,
+        onInsuranceFundAppendRowWithData,
+        onInsuranceFundRemoveRow,
+        onInsuranceFundClearRows,
+        fundCurrencyOptions,
+        chartPalette,
+        accentColor,
+        layout = 'mobile'
+    }) => {
+        const emptyDraft = { investmentOption: '', fundCode: '', currency: 'HKD', units: '', unitPrice: '', averagePrice: '' };
+        const [modalState, setModalState] = React.useState({ mode: '', rowIndex: -1, draft: emptyDraft });
+
+        const palette = Array.isArray(chartPalette) && chartPalette.length > 0
+            ? chartPalette
+            : ['#6366F1', '#14B8A6', '#F59E0B', '#EC4899', '#8B5CF6', '#22C55E', '#F97316', '#0EA5E9'];
+        const safeToHKD = typeof toHKD === 'function' ? toHKD : (value) => Number(value || 0);
+        const safeFromHKD = typeof fromHKD === 'function' ? fromHKD : (value) => Number(value || 0);
+        const globalCurrency = displayCurrency || item.currency || 'HKD';
+        const resolvedAccentColor = accentColor || palette[0] || '#6366F1';
+        const chartSegmentsBase = investmentFundRows
+            .map((row, index) => {
+                const safeBalance = row.balance > 0 ? row.balance : 0;
+                const rowCurrency = row.currency || item.currency || 'HKD';
+                const convertedBalance = safeFromHKD(safeToHKD(safeBalance, rowCurrency), globalCurrency);
+                const safePnlPercent = (() => {
+                    const rawPnLPercent = parseNumberLoose(row.profitLossPercent);
+                    if (rawPnLPercent !== 0) return rawPnLPercent;
+                    if (row.averagePrice > 0 && row.unitPrice > 0) {
+                        return ((row.unitPrice - row.averagePrice) / row.averagePrice) * 100;
+                    }
+                    return 0;
+                })();
+                return {
+                index,
+                label: row.investmentOption || tByLang('未命名基金', 'Unnamed Fund', '名称未設定ファンド'),
+                    value: convertedBalance,
+                    pnlPercent: safePnlPercent,
+                    color: palette[index % palette.length],
+                    fundCode: row.fundCode || '--',
+                    currency: rowCurrency
+                };
+            });
+        const fundBalanceByCurrency = investmentFundRows.reduce((acc, row) => {
+            const currency = row.currency || item.currency || 'HKD';
+            const balance = Number(row.balance || 0);
+            if (!acc[currency]) acc[currency] = 0;
+            acc[currency] += balance;
+            return acc;
+        }, {});
+        const fundBalanceByCurrencyText = Object.entries(fundBalanceByCurrency)
+            .map(([currency, amount]) => `${formatAmount(amount)} ${currency}`)
+            .join(' + ');
+        const chartTotal = chartSegmentsBase.reduce((sum, segment) => sum + segment.value, 0);
+        const chartSegments = chartSegmentsBase.map(segment => ({
+            ...segment,
+            allocationPercent: chartTotal > 0 ? (segment.value / chartTotal) * 100 : 0
+        }));
+        const chartGradient = chartTotal > 0
+            ? (() => {
+                let offset = 0;
+                const ranges = chartSegments.map(segment => {
+                    const ratio = segment.value / chartTotal;
+                    const start = offset;
+                    offset += ratio * 360;
+                    return `${segment.color} ${start.toFixed(2)}deg ${offset.toFixed(2)}deg`;
+                });
+                return `conic-gradient(${ranges.join(', ')})`;
+            })()
+            : 'conic-gradient(#e2e8f0 0deg 360deg)';
+
+        const totalMarketValue = chartTotal;
+        const totalPremiumValue = safeFromHKD(safeToHKD(Number(premiumTotalAmount || 0), item.currency || globalCurrency), globalCurrency);
+        const totalPnlAmount = totalMarketValue - totalPremiumValue;
+        const totalPnlPercent = totalPremiumValue > 0 ? ((totalPnlAmount / totalPremiumValue) * 100) : 0;
+
+        const commitRow = (rowIndex, draft) => {
+            onInsuranceFundRowFieldChange(item.id, rowIndex, 'investmentOption', draft.investmentOption || '');
+            onInsuranceFundRowFieldChange(item.id, rowIndex, 'codeCurrency', buildFundCodeCurrency(draft.fundCode, draft.currency));
+            onInsuranceFundRowFieldChange(item.id, rowIndex, 'units', draft.units || '');
+            onInsuranceFundRowFieldChange(item.id, rowIndex, 'unitPrice', draft.unitPrice || '');
+            onInsuranceFundRowFieldChange(item.id, rowIndex, 'averagePrice', draft.averagePrice || '');
+        };
+
+        const openAddModal = () => {
+            setModalState({
+                mode: 'add',
+                rowIndex: -1,
+                draft: {
+                    ...emptyDraft,
+                    currency: (fundCurrencyOptions && fundCurrencyOptions[0]) ? fundCurrencyOptions[0] : 'HKD'
+                }
+            });
+        };
+
+        const openEditModal = (row, rowIndex) => {
+            setModalState({
+                mode: 'edit',
+                rowIndex,
+                draft: {
+                    investmentOption: row.investmentOption || '',
+                    fundCode: row.fundCode || '',
+                    currency: row.currency || item.currency || 'HKD',
+                    units: row.unitsRaw || '',
+                    unitPrice: row.unitPriceRaw || '',
+                    averagePrice: row.averagePriceRaw || ''
+                }
+            });
+        };
+
+        const closeModal = () => {
+            setModalState({ mode: '', rowIndex: -1, draft: emptyDraft });
+        };
+
+        const saveModal = () => {
+            const payload = {
+                investmentOption: modalState.draft.investmentOption || '',
+                codeCurrency: buildFundCodeCurrency(modalState.draft.fundCode, modalState.draft.currency),
+                units: modalState.draft.units || '',
+                unitPrice: modalState.draft.unitPrice || '',
+                averagePrice: modalState.draft.averagePrice || ''
+            };
+
+            if (modalState.mode === 'add') {
+                onInsuranceFundAppendRowWithData(item.id, payload);
+            }
+            if (modalState.mode === 'edit' && modalState.rowIndex >= 0) {
+                commitRow(modalState.rowIndex, modalState.draft);
+            }
+            closeModal();
+        };
+
+        return (
+            <div className="mt-2 rounded-xl border theme-surface p-3 space-y-3" style={{ borderColor: `${resolvedAccentColor}55` }}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-xs font-black theme-text-main">{tByLang('投資概覽', 'Investment Overview', '投資概要')}</div>
+                    <div className="flex flex-wrap items-center gap-2 text-[10px] font-black">
+                        <button
+                            type="button"
+                            onClick={openAddModal}
+                            className="rounded-md border bg-white px-2 py-1"
+                            style={{ borderColor: `${resolvedAccentColor}66`, color: resolvedAccentColor }}
+                        >
+                            {tByLang('新增基金', 'Add Fund', 'ファンド追加')}
+                        </button>
+                        <button type="button" onClick={() => onInsuranceFundClearRows(item.id)} className="rounded-md border border-slate-300 bg-white px-2 py-1 theme-text-sub">{tByLang('清空基金', 'Clear Funds', '全クリア')}</button>
+                    </div>
+                </div>
+
+                <div className={layout === 'desktop' ? 'grid grid-cols-1 lg:grid-cols-3 gap-3' : 'space-y-3'}>
+                    <div className="rounded-lg border theme-surface p-3 flex items-center gap-3" style={{ borderColor: `${resolvedAccentColor}55` }}>
+                        <div className="w-24 h-24 rounded-full border-4 border-white shadow-sm" style={{ background: chartGradient }}></div>
+                        <div className="text-[11px] font-bold theme-text-sub space-y-1">
+                            <div>{tByLang('基金數量', 'Fund Count', 'ファンド数')}：{investmentFundRows.length}</div>
+                            <div>{tByLang('保費總額', 'Total Premium', '総保険料')}：{formatAmount(totalPremiumValue)} {globalCurrency}</div>
+                            <div>{tByLang('基金加總', 'Total Funds', 'ファンド合計')}：{formatAmount(totalMarketValue)} {globalCurrency}</div>
+                            {fundBalanceByCurrencyText && (
+                                <div className="text-[10px]">{fundBalanceByCurrencyText}</div>
+                            )}
+                            <div className={totalPnlAmount >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+                                {tByLang('帳戶盈虧', 'Account P/L', '口座損益')}：{totalPnlAmount >= 0 ? '+' : ''}{formatAmount(totalPnlAmount)} {globalCurrency}
+                                {' · '}
+                                {totalPnlPercent >= 0 ? '+' : ''}{totalPnlPercent.toFixed(2)}%
+                            </div>
+                        </div>
+                    </div>
+                    <div className={layout === 'desktop' ? 'lg:col-span-2 rounded-lg border theme-surface p-3' : 'rounded-lg border theme-surface p-3'} style={{ borderColor: `${resolvedAccentColor}44` }}>
+                        <div className="text-[10px] font-black theme-text-sub mb-2">{tByLang('基金組成', 'Fund Composition', 'ファンド構成')}</div>
+                        <div className="space-y-1">
+                            {chartSegments.length > 0 ? chartSegments.map(segment => {
+                                return (
+                                    <div key={`${item.id}-segment-${segment.index}`} className="flex items-center justify-between text-[10px] font-bold theme-text-sub">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: segment.color }}></span>
+                                            <span className="truncate">{segment.label}</span>
+                                        </div>
+                                        <span>{segment.allocationPercent.toFixed(1)}% · {segment.pnlPercent >= 0 ? '+' : ''}{segment.pnlPercent.toFixed(2)}%</span>
+                                    </div>
+                                );
+                            }) : <div className="text-[10px] font-bold theme-text-sub">{tByLang('尚未有基金資料', 'No fund data yet', 'ファンドデータなし')}</div>}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                    <table className="w-full table-fixed text-[11px]">
+                        <colgroup>
+                            <col style={{ width: '10%' }} />
+                            <col style={{ width: '18%' }} />
+                            <col style={{ width: '14%' }} />
+                            <col style={{ width: '8%' }} />
+                            <col style={{ width: '10%' }} />
+                            <col style={{ width: '10%' }} />
+                            <col style={{ width: '10%' }} />
+                            <col style={{ width: '10%' }} />
+                            <col style={{ width: '10%' }} />
+                            <col style={{ width: '10%' }} />
+                        </colgroup>
+                        <thead>
+                            <tr className="theme-text-sub font-black border-b border-slate-200">
+                                <th className="px-2 py-2 text-left">{tByLang('分配 %', 'Allocation %', '配分 %')}</th>
+                                <th className="px-2 py-2 text-left">{tByLang('基金／投資選項', 'Fund / Option', 'ファンド／投資オプション')}</th>
+                                <th className="px-2 py-2 text-left">{tByLang('基金編號', 'Fund Code', 'ファンドコード')}</th>
+                                <th className="px-2 py-2 text-left">{tByLang('貨幣', 'Currency', '通貨')}</th>
+                                <th className="px-2 py-2 text-left">{tByLang('單位數目', 'Units', '口数')}</th>
+                                <th className="px-2 py-2 text-left">{tByLang('單位價格', 'Unit Price', '基準価額')}</th>
+                                <th className="px-2 py-2 text-left">{tByLang('平均價格', 'Average Price', '平均価格')}</th>
+                                <th className="px-2 py-2 text-left">{tByLang('利潤或虧蝕 %', 'P/L %', '損益 %')}</th>
+                                <th className="px-2 py-2 text-left">{tByLang('結餘', 'Balance', '残高')}</th>
+                                <th className="px-2 py-2 text-right">{tByLang('操作', 'Action', '操作')}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {investmentFundRows.map((row, rowIndex) => {
+                                const computedAllocation = chartSegments[rowIndex]?.allocationPercent || 0;
+                                const computedPnlPercent = (() => {
+                                    const rawPnLPercent = parseNumberLoose(row.profitLossPercent);
+                                    if (rawPnLPercent !== 0) return rawPnLPercent;
+                                    if (row.averagePrice > 0 && row.unitPrice > 0) {
+                                        return ((row.unitPrice - row.averagePrice) / row.averagePrice) * 100;
+                                    }
+                                    return 0;
+                                })();
+                                return (
+                                    <tr key={`${item.id}-manage-fund-${rowIndex}`} className="border-t border-slate-200">
+                                        <td className="px-2 py-2"><span className="font-bold" style={{ color: resolvedAccentColor }}>{computedAllocation.toFixed(2)}%</span></td>
+                                        <td className="px-2 py-2"><span className="font-bold theme-text-main">{row.investmentOption || '--'}</span></td>
+                                        <td className="px-2 py-2"><span className="font-bold theme-text-main">{row.fundCode || '--'}</span></td>
+                                        <td className="px-2 py-2"><span className="font-bold theme-text-main">{row.currency || '--'}</span></td>
+                                        <td className="px-2 py-2"><span className="font-bold theme-text-main">{formatAmount(row.units)}</span></td>
+                                        <td className="px-2 py-2"><span className="font-bold theme-text-main">{formatAmount(row.unitPrice)}</span></td>
+                                        <td className="px-2 py-2"><span className="font-bold theme-text-main">{formatAmount(row.averagePrice)}</span></td>
+                                        <td className="px-2 py-2"><span className={computedPnlPercent >= 0 ? 'font-bold text-emerald-700' : 'font-bold text-rose-700'}>{computedPnlPercent >= 0 ? '+' : ''}{computedPnlPercent.toFixed(2)}%</span></td>
+                                        <td className="px-2 py-2">
+                                            <div className="font-bold theme-text-main">{formatAmount(row.balance)} {row.currency || item.currency || 'HKD'}</div>
+                                        </td>
+                                        <td className="px-2 py-2 text-right">
+                                            <div className="inline-flex items-center gap-1 text-[10px] font-black">
+                                                <button type="button" onClick={() => openEditModal(row, rowIndex)} className="rounded border bg-white px-1.5 py-0.5" style={{ borderColor: `${resolvedAccentColor}66`, color: resolvedAccentColor }}>{tByLang('編輯', 'Edit', '編集')}</button>
+                                                <button type="button" onClick={() => onInsuranceFundRemoveRow(item.id, rowIndex)} className="rounded border border-slate-300 bg-white px-1.5 py-0.5 theme-text-sub">✕</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+
+                {modalState.mode && (
+                    <div className="fixed inset-0 z-[120] bg-black/40 flex items-center justify-center p-4">
+                        <div className="w-full max-w-2xl rounded-2xl theme-surface border shadow-xl p-4 space-y-3" style={{ borderColor: `${resolvedAccentColor}66` }}>
+                            <div className="flex items-center justify-between">
+                                <div className="text-sm font-black theme-text-main">
+                                    {modalState.mode === 'add'
+                                        ? tByLang('新增基金', 'Add Fund', 'ファンド追加')
+                                        : tByLang('編輯基金', 'Edit Fund', 'ファンド編集')}
+                                </div>
+                                <button type="button" onClick={closeModal} className="text-xs font-black theme-text-sub">✕</button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black theme-text-sub">{tByLang('基金／投資選項', 'Fund / Option', 'ファンド／投資オプション')}</label>
+                                    <input type="text" value={modalState.draft.investmentOption} onChange={(event) => setModalState(prev => ({ ...prev, draft: { ...prev.draft, investmentOption: event.target.value } }))} className="w-full rounded-lg theme-input px-3 py-2 text-sm font-bold" />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black theme-text-sub">{tByLang('基金編號', 'Fund Code', 'ファンドコード')}</label>
+                                    <input type="text" value={modalState.draft.fundCode} onChange={(event) => setModalState(prev => ({ ...prev, draft: { ...prev.draft, fundCode: event.target.value } }))} className="w-full rounded-lg theme-input px-3 py-2 text-sm font-bold" />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black theme-text-sub">{tByLang('貨幣', 'Currency', '通貨')}</label>
+                                    <select value={modalState.draft.currency} onChange={(event) => setModalState(prev => ({ ...prev, draft: { ...prev.draft, currency: event.target.value } }))} className="w-full rounded-lg theme-input px-3 py-2 text-sm font-bold">
+                                        {(fundCurrencyOptions || ['HKD']).map(code => <option key={`${item.id}-${code}`} value={code}>{code}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black theme-text-sub">{tByLang('單位數目', 'Units', '口数')}</label>
+                                    <input type="number" step="any" min="0" value={modalState.draft.units} onChange={(event) => setModalState(prev => ({ ...prev, draft: { ...prev.draft, units: event.target.value } }))} className="w-full rounded-lg theme-input px-3 py-2 text-sm font-bold" />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black theme-text-sub">{tByLang('單位價格', 'Unit Price', '基準価額')}</label>
+                                    <input type="number" step="any" min="0" value={modalState.draft.unitPrice} onChange={(event) => setModalState(prev => ({ ...prev, draft: { ...prev.draft, unitPrice: event.target.value } }))} className="w-full rounded-lg theme-input px-3 py-2 text-sm font-bold" />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black theme-text-sub">{tByLang('平均價格', 'Average Price', '平均価格')}</label>
+                                    <input type="number" step="any" min="0" value={modalState.draft.averagePrice} onChange={(event) => setModalState(prev => ({ ...prev, draft: { ...prev.draft, averagePrice: event.target.value } }))} className="w-full rounded-lg theme-input px-3 py-2 text-sm font-bold" />
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 text-xs font-black">
+                                <button type="button" onClick={closeModal} className="rounded-lg border border-slate-300 bg-white px-3 py-2 theme-text-sub">{tByLang('取消', 'Cancel', 'キャンセル')}</button>
+                                <button type="button" onClick={saveModal} className="rounded-lg border px-3 py-2 text-white" style={{ backgroundColor: resolvedAccentColor, borderColor: resolvedAccentColor }}>{tByLang('儲存', 'Save', '保存')}</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     const AssetDetailMobileCards = ({
         items,
@@ -104,7 +472,16 @@
         cashflowAutoRulesByLiquidAssetId,
         insuranceAutoPaidCountByAssetId,
         insurancePartialWithdrawalStatsByAssetId,
-        CASHFLOW_FREQUENCIES
+        CASHFLOW_FREQUENCIES,
+        onInsuranceFundRowFieldChange,
+        onInsuranceFundAppendRowWithData,
+        onInsuranceFundRemoveRow,
+        onInsuranceFundMoveRow,
+        onInsuranceFundDuplicateRow,
+        onInsuranceFundClearRows,
+        fundCurrencyOptions,
+        chartPalette,
+        fundAccentColor
     }) => (
         <div className="md:hidden px-4 pt-4 pb-4 space-y-3">
             {items.map(item => {
@@ -133,6 +510,22 @@
                 const insuranceSupplementaryBenefitDeductible = (item.insuranceSupplementaryBenefitDeductible || '').trim();
                 const insuranceBasePremiumAmount = Number(item.insuranceBasePremiumAmount || 0);
                 const insuranceSupplementaryPremiumAmount = Number(item.insuranceSupplementaryPremiumAmount || 0);
+                const insuranceHasSupplementaryBenefit = item.insuranceHasSupplementaryBenefit === 'yes';
+                const isInvestmentLinkedLifeSubtype = isLifeInsurance && ['投資型壽險', '投資/投資相連'].includes(item.subtype);
+                const investmentFundRows = parseInvestmentFundRows(item.insuranceInvestmentFundItems || '');
+                const investmentFundTotals = investmentFundRows.reduce((acc, row) => {
+                    acc.balance += row.balance;
+                    acc.pnl += row.pnl;
+                    acc.balanceHKD += toHKD(row.balance, row.currency || item.currency || 'HKD');
+                    const currency = row.currency || item.currency || 'HKD';
+                    if (!acc.balanceByCurrency[currency]) acc.balanceByCurrency[currency] = 0;
+                    acc.balanceByCurrency[currency] += row.balance;
+                    return acc;
+                }, { balance: 0, pnl: 0, balanceHKD: 0, balanceByCurrency: {} });
+                const fundBalanceByCurrencyText = Object.entries(investmentFundTotals.balanceByCurrency)
+                    .map(([currency, amount]) => `${formatAmount(amount)} ${currency}`)
+                    .join(' + ');
+                const investmentStrategyNote = (item.insuranceInvestmentStrategyNote || '').trim();
                 const insuranceCoverageAmount = Number(item.insuranceCoverageAmount || 0);
                 const insuranceCoverageDisplay = fromHKD(toHKD(insuranceCoverageAmount, item.currency), displayCurrency);
                 const manualPremiumPaidCount = Number(item.premiumPaidCount || 0);
@@ -145,10 +538,15 @@
                 const premiumTermCap = premiumPaymentYears > 0 ? premiumPaymentYears * premiumTermsPerYear : 0;
                 const paidCountRaw = Math.max(manualPremiumPaidCount, autoPremiumPaidCount);
                 const effectivePremiumPaidCount = premiumTermCap > 0 ? Math.min(paidCountRaw, premiumTermCap) : paidCountRaw;
+                const premiumAmount = Number(item.premiumAmount || 0);
+                const premiumTotalAmount = premiumAmount * effectivePremiumPaidCount;
+                const premiumTotalHKD = toHKD(premiumTotalAmount, item.currency || 'HKD');
                 const isPolicyFullyPaid = premiumTermCap > 0 && effectivePremiumPaidCount >= premiumTermCap;
                 const currentPolicyYear = effectivePremiumPaidCount > 0
                     ? (item.premiumFrequency === 'yearly' ? effectivePremiumPaidCount : (Math.floor((effectivePremiumPaidCount - 1) / 12) + 1))
                     : 0;
+                const investmentAccountBalanceDisplay = fromHKD(investmentFundTotals.balanceHKD, displayCurrency);
+                const investmentAccountPnlDisplay = fromHKD(investmentFundTotals.balanceHKD - premiumTotalHKD, displayCurrency);
                 const distributionStartYear = normalizeDistributionStartPolicyYear({
                     startDateKey: item.insuranceStartDate,
                     rawValue: item.insuranceDistributionStartPolicyYear
@@ -183,7 +581,7 @@
                                 <div className="text-[10px] text-slate-400 font-bold">{translate(CATEGORIES[item.category].label)} / {translate(item.subtype)}</div>
                             </div>
                             <div className={`text-base font-black ${highlightClass}`}>
-                                {amountPrefix}{formatAmount(mktValDisplay)} {displayCurrency}
+                                {amountPrefix}{formatAmount(isInvestmentLinkedLifeSubtype ? investmentAccountBalanceDisplay : mktValDisplay)} {displayCurrency}
                             </div>
                         </div>
                         {isInsuranceCategory && (
@@ -200,6 +598,12 @@
                                             <span className={`ml-1 ${PAID_OFF_BADGE_CLASS}`}>{tByLang('保費全部繳清', 'Paid Off', '払込完了')}</span>
                                         )}
                                     </>
+                                    : isInvestmentLinkedLifeSubtype
+                                        ? <span className="text-indigo-700">{tByLang(
+                                            `保費總額 ${formatAmount(fromHKD(premiumTotalHKD, displayCurrency))} ${displayCurrency} · 基金加總 ${fundBalanceByCurrencyText || '--'} · 盈虧 ${investmentAccountPnlDisplay >= 0 ? '+' : ''}${formatAmount(investmentAccountPnlDisplay)} ${displayCurrency}`,
+                                            `Total Premium ${formatAmount(fromHKD(premiumTotalHKD, displayCurrency))} ${displayCurrency} · Total Funds ${fundBalanceByCurrencyText || '--'} · P/L ${investmentAccountPnlDisplay >= 0 ? '+' : ''}${formatAmount(investmentAccountPnlDisplay)} ${displayCurrency}`,
+                                            `総保険料 ${formatAmount(fromHKD(premiumTotalHKD, displayCurrency))} ${displayCurrency} ・ファンド合計 ${fundBalanceByCurrencyText || '--'} ・損益 ${investmentAccountPnlDisplay >= 0 ? '+' : ''}${formatAmount(investmentAccountPnlDisplay)} ${displayCurrency}`
+                                        )}</span>
                                     : isLifeInsurance
                                         ? <span className="text-indigo-700">{tByLang(
                                             isPolicyFullyPaid
@@ -243,21 +647,45 @@
                                 {insurancePolicyNumber && <div className="text-violet-700">保單號：{insurancePolicyNumber}</div>}
                                 {insuranceBeneficiary && <div className="text-emerald-700">受益人：{insuranceBeneficiary}</div>}
                                 {insuranceCoverageAmount > 0 && <div className="text-amber-700">保額：{formatAmount(insuranceCoverageAmount)} {item.currency}</div>}
-                                {isLifeInsurance && (insuranceBasePremiumAmount > 0 || insuranceSupplementaryPremiumAmount > 0) && (
+                                {isLifeInsurance && (insuranceBasePremiumAmount > 0 || (insuranceHasSupplementaryBenefit && insuranceSupplementaryPremiumAmount > 0)) && (
                                     <div className="text-amber-700">
                                         {tByLang('保費組合：主約 ', 'Premium Mix: Base ', '保険料内訳：主契約 ')}{formatAmount(insuranceBasePremiumAmount)} {item.currency}
-                                        {insuranceSupplementaryPremiumAmount > 0
+                                        {insuranceHasSupplementaryBenefit && insuranceSupplementaryPremiumAmount > 0
                                             ? tByLang(` + 附加 ${formatAmount(insuranceSupplementaryPremiumAmount)} ${item.currency}`, ` + Supplementary ${formatAmount(insuranceSupplementaryPremiumAmount)} ${item.currency}`, ` + 特約 ${formatAmount(insuranceSupplementaryPremiumAmount)} ${item.currency}`)
                                             : ''}
                                     </div>
                                 )}
-                                {isLifeInsurance && insuranceSupplementaryBenefitName && (
+                                {isLifeInsurance && insuranceHasSupplementaryBenefit && insuranceSupplementaryBenefitName && (
                                     <div className="text-indigo-700">
                                         {tByLang('附加保障：', 'Supplementary Benefit:', '特約：')}
                                         {insuranceSupplementaryBenefitName}
                                         {insuranceSupplementaryBenefitRegion ? ` · ${insuranceSupplementaryBenefitRegion}` : ''}
                                         {insuranceSupplementaryBenefitDeductible ? tByLang(` · 自付費 ${insuranceSupplementaryBenefitDeductible}`, ` · Deductible ${insuranceSupplementaryBenefitDeductible}`, ` ・自己負担 ${insuranceSupplementaryBenefitDeductible}`) : ''}
                                     </div>
+                                )}
+                                {isInvestmentLinkedLifeSubtype && investmentStrategyNote && (
+                                    <div className="text-indigo-700">{tByLang('投資策略：', 'Strategy:', '運用方針：')}{investmentStrategyNote}</div>
+                                )}
+                                {isInvestmentLinkedLifeSubtype && (
+                                    <InvestmentFundManagerSection
+                                        item={item}
+                                        investmentFundRows={investmentFundRows}
+                                        tByLang={tByLang}
+                                        formatAmount={formatAmount}
+                                        onInsuranceFundRowFieldChange={onInsuranceFundRowFieldChange}
+                                        onInsuranceFundAppendRowWithData={onInsuranceFundAppendRowWithData}
+                                        onInsuranceFundRemoveRow={onInsuranceFundRemoveRow}
+                                        onInsuranceFundMoveRow={onInsuranceFundMoveRow}
+                                        onInsuranceFundDuplicateRow={onInsuranceFundDuplicateRow}
+                                        onInsuranceFundClearRows={onInsuranceFundClearRows}
+                                        toHKD={toHKD}
+                                        fromHKD={fromHKD}
+                                        displayCurrency={displayCurrency}
+                                        fundCurrencyOptions={fundCurrencyOptions}
+                                        chartPalette={chartPalette}
+                                        accentColor={fundAccentColor}
+                                        premiumTotalAmount={premiumTotalAmount}
+                                    />
                                 )}
                                 {isLifeInsurance && annualDistributionAmount > 0 && (
                                     <div className="text-indigo-700">
@@ -386,10 +814,20 @@
         openEdit,
         cashflowAutoRulesByLiquidAssetId,
         insuranceAutoPaidCountByAssetId,
-        insurancePartialWithdrawalStatsByAssetId
+        insurancePartialWithdrawalStatsByAssetId,
+        onInsuranceFundRowFieldChange,
+        onInsuranceFundAppendRowWithData,
+        onInsuranceFundRemoveRow,
+        onInsuranceFundMoveRow,
+        onInsuranceFundDuplicateRow,
+        onInsuranceFundClearRows,
+        fundCurrencyOptions,
+        chartPalette,
+        fundAccentColor
     }) => {
         const isHealthInsuranceGroup = isInsuranceCategory && items.length > 0 && items.every(item => INSURANCE_HEALTH_SUBTYPES.includes(item.subtype));
         const isLifeInsuranceGroup = isInsuranceCategory && items.length > 0 && items.every(item => INSURANCE_LIFE_WEALTH_SUBTYPES.includes(item.subtype));
+        const isInvestmentLinkedOnlyGroup = isInsuranceCategory && items.length > 0 && items.every(item => ['投資型壽險', '投資/投資相連'].includes(item.subtype));
 
         return (
         <div className="hidden md:block overflow-x-auto -mx-4 sm:mx-0">
@@ -412,13 +850,24 @@
                         </colgroup>
                     )}
                     {isInsuranceCategory && (isHealthInsuranceGroup || isLifeInsuranceGroup) && (
-                        <colgroup>
-                            <col style={{ width: '28%' }} />
-                            <col style={{ width: '14%' }} />
-                            <col style={{ width: '22%' }} />
-                            <col style={{ width: '18%' }} />
-                            <col style={{ width: '18%' }} />
-                        </colgroup>
+                        isInvestmentLinkedOnlyGroup ? (
+                            <colgroup>
+                                <col style={{ width: '21%' }} />
+                                <col style={{ width: '15%' }} />
+                                <col style={{ width: '15%' }} />
+                                <col style={{ width: '17%' }} />
+                                <col style={{ width: '16%' }} />
+                                <col style={{ width: '17%' }} />
+                            </colgroup>
+                        ) : (
+                            <colgroup>
+                                <col style={{ width: '28%' }} />
+                                <col style={{ width: '14%' }} />
+                                <col style={{ width: '22%' }} />
+                                <col style={{ width: '18%' }} />
+                                <col style={{ width: '18%' }} />
+                            </colgroup>
+                        )
                     )}
                     {isInvestCategory && (
                         <colgroup>
@@ -432,9 +881,10 @@
                     <thead className="text-[10px] font-black text-slate-400 uppercase tracking-tighter bg-slate-50/30">
                         <tr>
                             <th className="px-6 py-3">{translate('名稱 / 細項')}</th>
-                            <th className="px-6 py-3 text-right">{isInsuranceCategory ? ((isHealthInsuranceGroup || isLifeInsuranceGroup) ? translate('保額/名義金額') : translate('保費設定')) : isLiquidCategory ? translate('數量 / 幣別') : isLiabilityCategory ? translate('金額 / 期數') : isReceivableCategory ? translate('應收金額 / 期數') : isFixedCategory ? translate('估值 / 成本') : translate('市值 / 數量')}</th>
+                            <th className="px-6 py-3 text-right">{isInsuranceCategory ? ((isHealthInsuranceGroup || isLifeInsuranceGroup) ? (isInvestmentLinkedOnlyGroup ? tByLang('保費總額', 'Total Premium', '総保険料') : translate('保額/名義金額')) : translate('保費設定')) : isLiquidCategory ? translate('數量 / 幣別') : isLiabilityCategory ? translate('金額 / 期數') : isReceivableCategory ? translate('應收金額 / 期數') : isFixedCategory ? translate('估值 / 成本') : translate('市值 / 數量')}</th>
                             <th className="px-6 py-3 text-right">{isInsuranceCategory ? ((isHealthInsuranceGroup || isLifeInsuranceGroup) ? translate('保費設定') : translate('已繳期數')) : isLiquidCategory ? translate('餘額') : isLiabilityCategory ? translate('利率 / 到期') : isReceivableCategory ? translate('到期 / 對象') : isFixedCategory ? translate('購入日 / 備註') : translate('現價 / 成本')}</th>
                             {isInsuranceCategory && (isHealthInsuranceGroup || isLifeInsuranceGroup) && <th className="px-6 py-3 text-right">{translate('已繳期數')}</th>}
+                            {isInsuranceCategory && isInvestmentLinkedOnlyGroup && <th className="px-6 py-3 text-right">{tByLang('帳戶盈虧', 'Account P/L', '口座損益')}</th>}
                             {isInsuranceCategory && <th className="px-6 py-3 text-right">{translate('保單價值')}</th>}
                             {isInvestCategory && <th className="px-6 py-3 text-right">{translate('持倉盈虧')}</th>}
                             {isInvestCategory && <th className="px-6 py-3 text-right">{translate('績效')}</th>}
@@ -462,7 +912,6 @@
                             const isPolicyFullyPaid = premiumTermCap > 0 && effectivePremiumPaidCount >= premiumTermCap;
                             const hasPremiumPlan = premiumAmount > 0 && effectivePremiumPaidCount >= 0;
                             const premiumTotalOrig = premiumAmount * effectivePremiumPaidCount;
-                            const premiumTotalDisplay = fromHKD(toHKD(premiumTotalOrig, item.currency), displayCurrency);
                             const isHealthInsurance = isInsuranceCategory && INSURANCE_HEALTH_SUBTYPES.includes(item.subtype);
                             const isLifeInsurance = isInsuranceCategory && INSURANCE_LIFE_WEALTH_SUBTYPES.includes(item.subtype);
                             const isLinkedInsurance = isInsuranceCategory && ['投資型壽險', '投資/投資相連', '萬能壽險'].includes(item.subtype);
@@ -479,6 +928,7 @@
                                 : 0;
                             const distributionPaidYears = Number(item.insuranceDistributionPaidYears || distributionPaidYearsFromCalc || 0);
                             const totalDistributedAmount = Number(item.insuranceTotalDistributedAmount || (annualDistributionAmount * distributionPaidYears) || 0);
+                            const hasDistributionBenefit = annualDistributionAmount > 0;
                             const accumulationBalance = Number(item.insuranceAccumulationBalance || 0);
                             const distributionMode = item.insuranceDistributionMode === 'accumulate' ? 'accumulate' : 'cash';
                             const partialWithdrawalStats = insurancePartialWithdrawalStatsByAssetId?.[item.id] || { count: 0, totalAmount: 0, latestDate: '' };
@@ -493,6 +943,32 @@
                             const insuranceSupplementaryBenefitDeductible = (item.insuranceSupplementaryBenefitDeductible || '').trim();
                             const insuranceBasePremiumAmount = Number(item.insuranceBasePremiumAmount || 0);
                             const insuranceSupplementaryPremiumAmount = Number(item.insuranceSupplementaryPremiumAmount || 0);
+                            const insuranceHasSupplementaryBenefit = item.insuranceHasSupplementaryBenefit === 'yes';
+                            const isInvestmentLinkedLifeSubtype = isLifeInsurance && ['投資型壽險', '投資/投資相連'].includes(item.subtype);
+                            const investmentFundRows = parseInvestmentFundRows(item.insuranceInvestmentFundItems || '');
+                            const investmentFundTotals = investmentFundRows.reduce((acc, row) => {
+                                acc.balance += row.balance;
+                                acc.pnl += row.pnl;
+                                acc.balanceHKD += toHKD(row.balance, row.currency || item.currency || 'HKD');
+                                const currency = row.currency || item.currency || 'HKD';
+                                if (!acc.balanceByCurrency[currency]) acc.balanceByCurrency[currency] = 0;
+                                acc.balanceByCurrency[currency] += row.balance;
+                                return acc;
+                            }, { balance: 0, pnl: 0, balanceHKD: 0, balanceByCurrency: {} });
+                            const premiumTotalHKD = toHKD(premiumTotalOrig, item.currency || 'HKD');
+                            const premiumTotalDisplay = fromHKD(premiumTotalHKD, displayCurrency);
+                            const investmentAccountBalanceDisplay = fromHKD(investmentFundTotals.balanceHKD, displayCurrency);
+                            const investmentAccountPnlDisplay = fromHKD(investmentFundTotals.balanceHKD - premiumTotalHKD, displayCurrency);
+                            const investmentAccountPnlPercent = premiumTotalHKD > 0
+                                ? (((investmentFundTotals.balanceHKD - premiumTotalHKD) / premiumTotalHKD) * 100)
+                                : 0;
+                            const insuranceAmountPositive = !isInvestmentLinkedLifeSubtype || investmentAccountPnlDisplay >= 0;
+                            const insuranceAmountMainClass = insuranceAmountPositive ? 'text-emerald-700' : 'text-rose-700';
+                            const insuranceAmountSubClass = insuranceAmountPositive ? 'text-emerald-600' : 'text-rose-600';
+                            const fundBalanceByCurrencyText = Object.entries(investmentFundTotals.balanceByCurrency)
+                                .map(([currency, amount]) => `${formatAmount(amount)} ${currency}`)
+                                .join(' + ');
+                            const investmentStrategyNote = (item.insuranceInvestmentStrategyNote || '').trim();
                             const insuranceCoverageAmount = Number(item.insuranceCoverageAmount || 0);
                             const insuranceCoverageDisplay = fromHKD(toHKD(insuranceCoverageAmount, item.currency), displayCurrency);
                             const nextBillingDateKey = getNextBillingDateKey({
@@ -550,8 +1026,12 @@
                                     : 'text-slate-600 bg-slate-100 ring-slate-200';
                             const perfIcon = isPerfPositive ? '↗' : isPerfNegative ? '↘' : '•';
 
+                            const insuranceColumnCount = (isHealthInsuranceGroup || isLifeInsuranceGroup)
+                                ? (isInvestmentLinkedOnlyGroup ? 6 : 5)
+                                : 4;
                             return (
-                                <tr key={item.id} onClick={() => openEdit(item)} className="hover:bg-indigo-50/30 cursor-pointer transition-colors group">
+                                <React.Fragment key={item.id}>
+                                <tr onClick={() => openEdit(item)} className="hover:bg-indigo-50/30 cursor-pointer transition-colors group">
                                     <td className="px-6 py-4">
                                         <div className="font-bold text-slate-800">{translate(item.name || '')}</div>
                                         <div className="text-[10px] text-slate-400 font-medium">{translate(CATEGORIES[item.category].label)} / {translate(item.subtype)}</div>
@@ -580,15 +1060,15 @@
                                                 {insuranceProvider && <div className="text-indigo-700">保險公司：{insuranceProvider}</div>}
                                                 {insurancePolicyNumber && <div className="text-violet-700">保單號：{insurancePolicyNumber}</div>}
                                                 {insuranceBeneficiary && <div className="text-emerald-700">受益人：{insuranceBeneficiary}</div>}
-                                                {isLifeInsurance && (insuranceBasePremiumAmount > 0 || insuranceSupplementaryPremiumAmount > 0) && (
+                                                {isLifeInsurance && (insuranceBasePremiumAmount > 0 || (insuranceHasSupplementaryBenefit && insuranceSupplementaryPremiumAmount > 0)) && (
                                                     <div className="text-amber-700">
                                                         {tByLang('保費組合：主約 ', 'Premium Mix: Base ', '保険料内訳：主契約 ')}{formatAmount(insuranceBasePremiumAmount)} {item.currency}
-                                                        {insuranceSupplementaryPremiumAmount > 0
+                                                        {insuranceHasSupplementaryBenefit && insuranceSupplementaryPremiumAmount > 0
                                                             ? tByLang(` + 附加 ${formatAmount(insuranceSupplementaryPremiumAmount)} ${item.currency}`, ` + Supplementary ${formatAmount(insuranceSupplementaryPremiumAmount)} ${item.currency}`, ` + 特約 ${formatAmount(insuranceSupplementaryPremiumAmount)} ${item.currency}`)
                                                             : ''}
                                                     </div>
                                                 )}
-                                                {isLifeInsurance && insuranceSupplementaryBenefitName && (
+                                                {isLifeInsurance && insuranceHasSupplementaryBenefit && insuranceSupplementaryBenefitName && (
                                                     <div className="text-indigo-700">
                                                         {tByLang('附加保障：', 'Supplementary Benefit:', '特約：')}
                                                         {insuranceSupplementaryBenefitName}
@@ -596,6 +1076,7 @@
                                                         {insuranceSupplementaryBenefitDeductible ? tByLang(` · 自付費 ${insuranceSupplementaryBenefitDeductible}`, ` · Deductible ${insuranceSupplementaryBenefitDeductible}`, ` ・自己負担 ${insuranceSupplementaryBenefitDeductible}`) : ''}
                                                     </div>
                                                 )}
+                                                {isInvestmentLinkedLifeSubtype && investmentStrategyNote && <div className="text-indigo-700">{tByLang('投資策略：', 'Strategy:', '運用方針：')}{investmentStrategyNote}</div>}
                                                 {isLifeInsurance && partialWithdrawalStats.count > 0 && (
                                                     <div className="text-rose-700">
                                                         {tByLang(
@@ -612,22 +1093,28 @@
                                     <td className="px-6 py-4 text-right">
                                         {isInsuranceCategory ? (
                                             (isHealthInsurance && isHealthInsuranceGroup) || (isLifeInsurance && isLifeInsuranceGroup) ? (
-                                                insuranceCoverageAmount > 0 ? (
+                                                isInvestmentLinkedOnlyGroup && isInvestmentLinkedLifeSubtype ? (
                                                     <>
-                                                        <div className="font-bold text-amber-700">{formatAmount(insuranceCoverageDisplay)} <span className="text-[9px] text-amber-500">{displayCurrency}</span></div>
-                                                        <div className="text-[10px] text-amber-600">{formatAmount(insuranceCoverageAmount)} {item.currency}</div>
+                                                        <div className={`font-bold ${insuranceAmountMainClass}`}>{formatAmount(premiumTotalDisplay)} <span className={`text-[9px] ${insuranceAmountSubClass}`}>{displayCurrency}</span></div>
+                                                        <div className={`text-[10px] ${insuranceAmountSubClass}`}>{formatAmount(premiumTotalOrig)} {item.currency}</div>
+                                                        <div className="text-[10px] text-indigo-600">{tByLang('基金', 'Funds', 'ファンド')} {investmentFundRows.length} {tByLang('項', 'items', '件')}</div>
+                                                    </>
+                                                ) : insuranceCoverageAmount > 0 ? (
+                                                    <>
+                                                        <div className={`font-bold ${insuranceAmountMainClass}`}>{formatAmount(insuranceCoverageDisplay)} <span className={`text-[9px] ${insuranceAmountSubClass}`}>{displayCurrency}</span></div>
+                                                        <div className={`text-[10px] ${insuranceAmountSubClass}`}>{formatAmount(insuranceCoverageAmount)} {item.currency}</div>
                                                     </>
                                                 ) : (
                                                     <div className="font-bold text-slate-400">--</div>
                                                 )
                                             ) : isHealthInsurance ? (
-                                                <div className="font-bold text-amber-700">
+                                                <div className={`font-bold ${insuranceAmountMainClass}`}>
                                                     {formatAmount(premiumAmount)} {item.currency}
                                                     <div className="text-[10px] text-slate-400">/{item.premiumFrequency === 'yearly' ? '每年' : '每月'} · 扣款日 {insuranceHasPaymentDay ? `${insurancePaymentDay} 號` : '--'}</div>
                                                 </div>
                                             ) : isLifeInsurance ? (
                                                 hasPremiumPlan ? (
-                                                    <div className="font-bold text-amber-700">
+                                                    <div className={`font-bold ${insuranceAmountMainClass}`}>
                                                         {formatAmount(premiumAmount)} {item.currency}
                                                         <div className="text-[10px] text-slate-400">/{item.premiumFrequency === 'yearly' ? tByLang('每年', 'yearly', '毎年') : tByLang('每月', 'monthly', '毎月')}{premiumPaymentYears > 0 ? tByLang(` · 繳費 ${premiumPaymentYears} 年`, ` · Pay ${premiumPaymentYears} yrs`, ` ・払込 ${premiumPaymentYears} 年`) : ''}</div>
                                                     </div>
@@ -693,7 +1180,7 @@
                                         {isInsuranceCategory ? (
                                             (isHealthInsurance && isHealthInsuranceGroup) || (isLifeInsurance && isLifeInsuranceGroup) ? (
                                                 <>
-                                                    <div className="font-bold text-amber-700">{formatAmount(premiumAmount)} {item.currency}</div>
+                                                    <div className={`font-bold ${insuranceAmountMainClass}`}>{formatAmount(premiumAmount)} {item.currency}</div>
                                                     {!isPolicyFullyPaid ? (
                                                         <>
                                                             <div className="text-[10px] text-slate-400">繳費週期：{item.premiumFrequency === 'yearly' ? '每年' : '每月'}</div>
@@ -720,7 +1207,7 @@
                                                                 ? tByLang('保費全部繳清', 'Paid Off', '払込完了')
                                                                 : `${effectivePremiumPaidCount.toLocaleString()}${premiumTermCap > 0 ? ` / ${premiumTermCap}` : ''} 期`}
                                                         </div>
-                                                        <div className="text-[10px] text-slate-400">{tByLang(`保單年度 ${currentPolicyYear || '--'} · 已派發 ${distributionPaidYears} 年`, `Policy Year ${currentPolicyYear || '--'} · Distributed ${distributionPaidYears} yrs`, `保険年度 ${currentPolicyYear || '--'} ・配当 ${distributionPaidYears} 年`)}</div>
+                                                        {hasDistributionBenefit && <div className="text-[10px] text-slate-400">{tByLang(`保單年度 ${currentPolicyYear || '--'} · 已派發 ${distributionPaidYears} 年`, `Policy Year ${currentPolicyYear || '--'} · Distributed ${distributionPaidYears} yrs`, `保険年度 ${currentPolicyYear || '--'} ・配当 ${distributionPaidYears} 年`)}</div>}
                                                         {annualDistributionAmount > 0 && <div className="text-[10px] text-indigo-600">{tByLang(`每年派發 ${formatAmount(annualDistributionAmount)} ${item.currency}`, `Annual Distribution ${formatAmount(annualDistributionAmount)} ${item.currency}`, `年間配当 ${formatAmount(annualDistributionAmount)} ${item.currency}`)}</div>}
                                                     </>
                                                 ) : (
@@ -798,20 +1285,36 @@
                                                     <div className="font-medium"><span className={PAID_OFF_BADGE_CLASS}>{tByLang('保費全部繳清', 'Policy fully paid', 'この保険は払込完了')}</span></div>
                                                     <div className="text-[10px] text-slate-400">保單生效日: {item.insuranceStartDate || '--'}</div>
                                                     {item.insuranceEndDate && <div className="text-[10px] text-slate-400">保單終止日: {item.insuranceEndDate}</div>}
-                                                    {isLifeInsurance && <div className="text-[10px] text-slate-400">{tByLang(`保單年度 ${currentPolicyYear || '--'} · 已派發 ${distributionPaidYears} 年`, `Policy Year ${currentPolicyYear || '--'} · Distributed ${distributionPaidYears} yrs`, `保険年度 ${currentPolicyYear || '--'} ・配当 ${distributionPaidYears} 年`)}</div>}
+                                                    {isLifeInsurance && hasDistributionBenefit && <div className="text-[10px] text-slate-400">{tByLang(`保單年度 ${currentPolicyYear || '--'} · 已派發 ${distributionPaidYears} 年`, `Policy Year ${currentPolicyYear || '--'} · Distributed ${distributionPaidYears} yrs`, `保険年度 ${currentPolicyYear || '--'} ・配当 ${distributionPaidYears} 年`)}</div>}
                                                 </>
                                             ) : item.insuranceEndDate ? (
                                                 <>
                                                     <div className="font-medium text-slate-700">{effectivePremiumPaidCount.toLocaleString()}{premiumTermCap > 0 ? ` / ${premiumTermCap}` : ` / ${(totalBillingPeriods ?? '--').toString()}`}期</div>
                                                     <div className="text-[10px] text-slate-400">保單生效日: {item.insuranceStartDate || '--'}</div>
                                                     <div className="text-[10px] text-slate-400">保單終止日: {item.insuranceEndDate}</div>
-                                                    {isLifeInsurance && <div className="text-[10px] text-slate-400">{tByLang(`保單年度 ${currentPolicyYear || '--'} · 已派發 ${distributionPaidYears} 年`, `Policy Year ${currentPolicyYear || '--'} · Distributed ${distributionPaidYears} yrs`, `保険年度 ${currentPolicyYear || '--'} ・配当 ${distributionPaidYears} 年`)}</div>}
+                                                    {isLifeInsurance && hasDistributionBenefit && <div className="text-[10px] text-slate-400">{tByLang(`保單年度 ${currentPolicyYear || '--'} · 已派發 ${distributionPaidYears} 年`, `Policy Year ${currentPolicyYear || '--'} · Distributed ${distributionPaidYears} yrs`, `保険年度 ${currentPolicyYear || '--'} ・配当 ${distributionPaidYears} 年`)}</div>}
                                                 </>
                                             ) : (
                                                 <>
                                                     <div className="font-medium text-slate-700">{effectivePremiumPaidCount.toLocaleString()} 期</div>
-                                                    {isLifeInsurance && <div className="text-[10px] text-slate-400">{tByLang(`保單年度 ${currentPolicyYear || '--'} · 已派發 ${distributionPaidYears} 年`, `Policy Year ${currentPolicyYear || '--'} · Distributed ${distributionPaidYears} yrs`, `保険年度 ${currentPolicyYear || '--'} ・配当 ${distributionPaidYears} 年`)}</div>}
+                                                    {isLifeInsurance && hasDistributionBenefit && <div className="text-[10px] text-slate-400">{tByLang(`保單年度 ${currentPolicyYear || '--'} · 已派發 ${distributionPaidYears} 年`, `Policy Year ${currentPolicyYear || '--'} · Distributed ${distributionPaidYears} yrs`, `保険年度 ${currentPolicyYear || '--'} ・配当 ${distributionPaidYears} 年`)}</div>}
                                                 </>
+                                            )}
+                                        </td>
+                                    )}
+                                    {isInsuranceCategory && isInvestmentLinkedOnlyGroup && (
+                                        <td className="px-6 py-4 text-right">
+                                            {isInvestmentLinkedLifeSubtype ? (
+                                                <>
+                                                    <div className={`font-bold ${investmentAccountPnlDisplay >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                                        {investmentAccountPnlDisplay >= 0 ? '+' : ''}{formatAmount(investmentAccountPnlDisplay)} {displayCurrency}
+                                                    </div>
+                                                    <div className={`text-[10px] ${investmentAccountPnlPercent >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                        {investmentAccountPnlPercent >= 0 ? '+' : ''}{investmentAccountPnlPercent.toFixed(2)}%
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="font-bold text-slate-400">--</div>
                                             )}
                                         </td>
                                     )}
@@ -819,21 +1322,28 @@
                                         <td className="px-6 py-4 text-right">
                                             {isHealthInsurance || isLifeInsurance ? (
                                                 hasPremiumPlan ? (
-                                                    <>
-                                                        <div className="font-bold text-emerald-700">{formatAmount(mktValDisplay)} <span className="text-[9px] text-emerald-500">{displayCurrency}</span></div>
-                                                        <div className="text-[10px] text-emerald-600">{formatAmount(mktValOrig)} {item.currency}</div>
-                                                        {isLifeInsurance && annualDistributionAmount > 0 && (
-                                                            <div className="text-[10px] text-indigo-600">
-                                                                {tByLang(`派發 ${formatAmount(annualDistributionAmount)} /年 ·`, `Distribution ${formatAmount(annualDistributionAmount)} /yr ·`, `配当 ${formatAmount(annualDistributionAmount)} /年 ・`)}
-                                                                {distributionMode === 'accumulate' ? tByLang(' 積存', ' Accum.', ' 積立') : tByLang(' 入帳', ' Cash', ' 入金')}
-                                                                {distributionMode === 'accumulate' ? ` ${formatAmount(accumulationBalance)}` : ''}
-                                                            </div>
-                                                        )}
-                                                        {isLifeInsurance && totalDistributedAmount > 0 && <div className="text-[10px] text-emerald-600">{tByLang(`累計派發 ${formatAmount(totalDistributedAmount)} ${item.currency}`, `Total Distributed ${formatAmount(totalDistributedAmount)} ${item.currency}`, `累計配当 ${formatAmount(totalDistributedAmount)} ${item.currency}`)}</div>}
-                                                        {isLifeInsurance && partialWithdrawalStats.count > 0 && (
-                                                            <div className="text-[10px] text-rose-600">{tByLang(`部分提領 ${formatAmount(partialWithdrawalStats.totalAmount)} ${item.currency}（${partialWithdrawalStats.count} 次）`, `Partial Withdrawals ${formatAmount(partialWithdrawalStats.totalAmount)} ${item.currency} (${partialWithdrawalStats.count})`, `一部引き出し ${formatAmount(partialWithdrawalStats.totalAmount)} ${item.currency}（${partialWithdrawalStats.count}回）`)}</div>
-                                                        )}
-                                                    </>
+                                                    isInvestmentLinkedLifeSubtype ? (
+                                                        <>
+                                                            <div className="font-bold text-emerald-700">{formatAmount(investmentAccountBalanceDisplay)} <span className="text-[9px] text-emerald-500">{displayCurrency}</span></div>
+                                                            <div className="text-[10px] text-emerald-600">{fundBalanceByCurrencyText || '--'}</div>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <div className="font-bold text-emerald-700">{formatAmount(mktValDisplay)} <span className="text-[9px] text-emerald-500">{displayCurrency}</span></div>
+                                                            <div className="text-[10px] text-emerald-600">{formatAmount(mktValOrig)} {item.currency}</div>
+                                                            {isLifeInsurance && annualDistributionAmount > 0 && (
+                                                                <div className="text-[10px] text-indigo-600">
+                                                                    {tByLang(`派發 ${formatAmount(annualDistributionAmount)} /年 ·`, `Distribution ${formatAmount(annualDistributionAmount)} /yr ·`, `配当 ${formatAmount(annualDistributionAmount)} /年 ・`)}
+                                                                    {distributionMode === 'accumulate' ? tByLang(' 積存', ' Accum.', ' 積立') : tByLang(' 入帳', ' Cash', ' 入金')}
+                                                                    {distributionMode === 'accumulate' ? ` ${formatAmount(accumulationBalance)}` : ''}
+                                                                </div>
+                                                            )}
+                                                            {isLifeInsurance && totalDistributedAmount > 0 && <div className="text-[10px] text-emerald-600">{tByLang(`累計派發 ${formatAmount(totalDistributedAmount)} ${item.currency}`, `Total Distributed ${formatAmount(totalDistributedAmount)} ${item.currency}`, `累計配当 ${formatAmount(totalDistributedAmount)} ${item.currency}`)}</div>}
+                                                            {isLifeInsurance && partialWithdrawalStats.count > 0 && (
+                                                                <div className="text-[10px] text-rose-600">{tByLang(`部分提領 ${formatAmount(partialWithdrawalStats.totalAmount)} ${item.currency}（${partialWithdrawalStats.count} 次）`, `Partial Withdrawals ${formatAmount(partialWithdrawalStats.totalAmount)} ${item.currency} (${partialWithdrawalStats.count})`, `一部引き出し ${formatAmount(partialWithdrawalStats.totalAmount)} ${item.currency}（${partialWithdrawalStats.count}回）`)}</div>
+                                                            )}
+                                                        </>
+                                                    )
                                                 ) : (
                                                     <div className="font-bold text-slate-400">--</div>
                                                 )
@@ -847,14 +1357,12 @@
                                     )}
                                     {isInvestCategory && (
                                         <td className="px-6 py-4 text-right">
-                                            <>
-                                                <div className={`font-bold ${profitOrig >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                    {profitOrig >= 0 ? '+' : ''}{formatAmount(profitOrig)} {item.currency}
-                                                </div>
-                                                <div className="text-[10px] text-slate-400">
-                                                    約 {formatAmount(profitDisplay)} {displayCurrency}
-                                                </div>
-                                            </>
+                                            <div className={`font-bold ${profitOrig >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                {profitOrig >= 0 ? '+' : ''}{formatAmount(profitOrig)} {item.currency}
+                                            </div>
+                                            <div className="text-[10px] text-slate-400">
+                                                約 {formatAmount(profitDisplay)} {displayCurrency}
+                                            </div>
                                         </td>
                                     )}
                                     {isInvestCategory && (
@@ -866,6 +1374,33 @@
                                         </td>
                                     )}
                                 </tr>
+                                {isInvestmentLinkedLifeSubtype && (
+                                    <tr className="bg-indigo-50/20">
+                                        <td colSpan={insuranceColumnCount} className="px-6 py-3">
+                                            <InvestmentFundManagerSection
+                                                item={item}
+                                                investmentFundRows={investmentFundRows}
+                                                tByLang={tByLang}
+                                                formatAmount={formatAmount}
+                                                onInsuranceFundRowFieldChange={onInsuranceFundRowFieldChange}
+                                                onInsuranceFundAppendRowWithData={onInsuranceFundAppendRowWithData}
+                                                onInsuranceFundRemoveRow={onInsuranceFundRemoveRow}
+                                                onInsuranceFundMoveRow={onInsuranceFundMoveRow}
+                                                onInsuranceFundDuplicateRow={onInsuranceFundDuplicateRow}
+                                                onInsuranceFundClearRows={onInsuranceFundClearRows}
+                                                toHKD={toHKD}
+                                                fromHKD={fromHKD}
+                                                displayCurrency={displayCurrency}
+                                                fundCurrencyOptions={fundCurrencyOptions}
+                                                chartPalette={chartPalette}
+                                                accentColor={fundAccentColor}
+                                                premiumTotalAmount={premiumTotalOrig}
+                                                layout="desktop"
+                                            />
+                                        </td>
+                                    </tr>
+                                )}
+                                </React.Fragment>
                             );
                         })}
                     </tbody>
@@ -891,7 +1426,16 @@
         cashflowAutoRulesByLiquidAssetId,
         insuranceAutoPaidCountByAssetId,
         insurancePartialWithdrawalStatsByAssetId,
-        CASHFLOW_FREQUENCIES
+        CASHFLOW_FREQUENCIES,
+        onInsuranceFundRowFieldChange,
+        onInsuranceFundAppendRowWithData,
+        onInsuranceFundRemoveRow,
+        onInsuranceFundMoveRow,
+        onInsuranceFundDuplicateRow,
+        onInsuranceFundClearRows,
+        fundCurrencyOptions,
+        chartPalette,
+        fundAccentColor
     }) => (
         <div className="space-y-10">
             {groupedAssets.map(({ categoryKey: catKey, accounts }) => (
@@ -985,6 +1529,15 @@
                                                     insuranceAutoPaidCountByAssetId={insuranceAutoPaidCountByAssetId}
                                                     insurancePartialWithdrawalStatsByAssetId={insurancePartialWithdrawalStatsByAssetId}
                                                     CASHFLOW_FREQUENCIES={CASHFLOW_FREQUENCIES}
+                                                    onInsuranceFundRowFieldChange={onInsuranceFundRowFieldChange}
+                                                    onInsuranceFundAppendRowWithData={onInsuranceFundAppendRowWithData}
+                                                    onInsuranceFundRemoveRow={onInsuranceFundRemoveRow}
+                                                    onInsuranceFundMoveRow={onInsuranceFundMoveRow}
+                                                    onInsuranceFundDuplicateRow={onInsuranceFundDuplicateRow}
+                                                    onInsuranceFundClearRows={onInsuranceFundClearRows}
+                                                    fundCurrencyOptions={fundCurrencyOptions}
+                                                    chartPalette={chartPalette}
+                                                    fundAccentColor={fundAccentColor}
                                                 />
                                                 <AssetDetailDesktopTable
                                                     items={groupItems}
@@ -1005,6 +1558,15 @@
                                                     cashflowAutoRulesByLiquidAssetId={cashflowAutoRulesByLiquidAssetId}
                                                     insuranceAutoPaidCountByAssetId={insuranceAutoPaidCountByAssetId}
                                                     insurancePartialWithdrawalStatsByAssetId={insurancePartialWithdrawalStatsByAssetId}
+                                                    onInsuranceFundRowFieldChange={onInsuranceFundRowFieldChange}
+                                                    onInsuranceFundAppendRowWithData={onInsuranceFundAppendRowWithData}
+                                                    onInsuranceFundRemoveRow={onInsuranceFundRemoveRow}
+                                                    onInsuranceFundMoveRow={onInsuranceFundMoveRow}
+                                                    onInsuranceFundDuplicateRow={onInsuranceFundDuplicateRow}
+                                                    onInsuranceFundClearRows={onInsuranceFundClearRows}
+                                                    fundCurrencyOptions={fundCurrencyOptions}
+                                                    chartPalette={chartPalette}
+                                                    fundAccentColor={fundAccentColor}
                                                 />
                                             </div>
                                         ))}
