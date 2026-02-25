@@ -32,7 +32,8 @@
         cashflowAppliedPostings: 'assetTracker.cashflowAppliedPostings.v1',
         pageLanguage: 'assetTracker.pageLanguage.v1',
         themeId: 'assetTracker.themeId.v1',
-        recentCurrencies: 'assetTracker.recentCurrencies.v1'
+        recentCurrencies: 'assetTracker.recentCurrencies.v1',
+        privacyMode: 'assetTracker.privacyMode.v1'
     };
     const FIREBASE_CONFIG = window.__FIREBASE_CONFIG__ || {
         apiKey: 'AIzaSyCsaa7V2NmhAORpGXCvHSJXjafmhNfRheA',

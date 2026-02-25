@@ -15,6 +15,7 @@
         CASHFLOW_TYPES,
         CASHFLOW_FREQUENCIES,
         liquidAssetLabelById,
+        liquidAssetMetaById,
         formatAmount,
         fromHKD,
         toHKD,
@@ -129,6 +130,27 @@
                                     </div>
                                 )}
 
+                                {(() => {
+                                    if (!item.targetLiquidAssetId) return null;
+                                    const targetMeta = liquidAssetMetaById?.[item.targetLiquidAssetId];
+                                    if (!targetMeta) return null;
+                                    const accountCurrency = targetMeta.currency || 'HKD';
+                                    const finalAmount = Number(targetMeta.quantity || 0);
+                                    const amountInAccountCurrency = fromHKD(toHKD(item.amount, item.currency), accountCurrency);
+                                    const signedAmount = item.type === 'INCOME' ? amountInAccountCurrency : -amountInAccountCurrency;
+                                    const baseAmount = finalAmount - signedAmount;
+                                    return (
+                                        <div className="text-[10px] text-slate-500 font-black">
+                                            {tByLang('帳戶金額：', 'Account Balance: ', '口座残高：')}
+                                            {formatAmount(baseAmount)} {accountCurrency}
+                                            {item.type === 'INCOME' ? ' + ' : ' - '}
+                                            {formatAmount(Math.abs(signedAmount))} {accountCurrency}
+                                            {' = '}
+                                            <span className={item.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}>{formatAmount(finalAmount)} {accountCurrency}</span>
+                                        </div>
+                                    );
+                                })()}
+
                                 <div className="grid grid-cols-2 gap-2 pt-0.5">
                                     <button
                                         type="button"
@@ -176,6 +198,26 @@
                                             + (liquidAssetLabelById[item.targetLiquidAssetId] || tByLang('已綁定帳戶', 'Linked Account', '連携済み口座'))}
                                         </div>
                                     )}
+                                    {(() => {
+                                        if (!item.targetLiquidAssetId) return null;
+                                        const targetMeta = liquidAssetMetaById?.[item.targetLiquidAssetId];
+                                        if (!targetMeta) return null;
+                                        const accountCurrency = targetMeta.currency || 'HKD';
+                                        const finalAmount = Number(targetMeta.quantity || 0);
+                                        const amountInAccountCurrency = fromHKD(toHKD(item.amount, item.currency), accountCurrency);
+                                        const signedAmount = item.type === 'INCOME' ? amountInAccountCurrency : -amountInAccountCurrency;
+                                        const baseAmount = finalAmount - signedAmount;
+                                        return (
+                                            <div className="text-[10px] text-slate-500 font-black mt-0.5">
+                                                {tByLang('帳戶金額：', 'Account Balance: ', '口座残高：')}
+                                                {formatAmount(baseAmount)} {accountCurrency}
+                                                {item.type === 'INCOME' ? ' + ' : ' - '}
+                                                {formatAmount(Math.abs(signedAmount))} {accountCurrency}
+                                                {' = '}
+                                                <span className={item.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}>{formatAmount(finalAmount)} {accountCurrency}</span>
+                                            </div>
+                                        );
+                                    })()}
                                     {item.note && <div className="text-[10px] text-slate-400 font-bold mt-0.5">{item.note}</div>}
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">

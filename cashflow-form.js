@@ -9,8 +9,20 @@
     }) => {
         const t = typeof tByLang === 'function' ? tByLang : ((zh) => zh);
         const title = (cashflowForm.title || '').trim();
-        const selectedLiquidAsset = liquidAssetOptions.find(option => option.id === cashflowForm.targetLiquidAssetId) || null;
-        const account = selectedLiquidAsset?.account || (cashflowForm.account || '').trim();
+        const selectedLiquidAssetById = liquidAssetOptions.find(option => option.id === cashflowForm.targetLiquidAssetId) || null;
+        const resolvedLiquidAsset = (() => {
+            if (selectedLiquidAssetById) return selectedLiquidAssetById;
+            const accountName = (cashflowForm.account || '').trim();
+            if (!accountName) return null;
+            const accountMatched = liquidAssetOptions.filter(option => (option.account || '').trim() === accountName);
+            if (accountMatched.length === 1) return accountMatched[0];
+            if (accountMatched.length > 1) {
+                const currencyMatched = accountMatched.filter(option => option.currency === cashflowForm.currency);
+                if (currencyMatched.length === 1) return currencyMatched[0];
+            }
+            return null;
+        })();
+        const account = resolvedLiquidAsset?.account || (cashflowForm.account || '').trim();
         const resolvedCategory = (cashflowForm.category || '').trim();
         const category = resolvedCategory || getDefaultCashflowCategory(cashflowForm.type);
         const note = (cashflowForm.note || '').trim();
@@ -88,7 +100,7 @@
             weekday,
             monthday,
             payday: scheduleType === 'RECURRING' && frequency === 'MONTHLY' ? payday : parsedStart.getDate(),
-            targetLiquidAssetId: selectedLiquidAsset?.id || ''
+            targetLiquidAssetId: resolvedLiquidAsset?.id || ''
         };
 
         return {
@@ -96,7 +108,7 @@
             amount,
             nextEntry,
             isEditing: Boolean(editingCashflowId),
-            selectedLiquidAsset
+            selectedLiquidAsset: resolvedLiquidAsset
         };
     };
 

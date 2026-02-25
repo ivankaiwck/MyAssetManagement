@@ -14,14 +14,29 @@
         setSelectedMixCategory,
         selectedMixItemStyle,
         detailMix,
-        detailDonutCenterCardStyle
+        detailDonutCenterCardStyle,
+        isPrivacyMode,
+        togglePrivacyMode,
+        tByLang
     }) => (
         <section className="theme-surface p-4 sm:p-6 rounded-2xl shadow-sm mb-8">
             <div className="theme-text-main font-black mb-4">{pageText.overviewTitle}</div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="space-y-4">
                     <div className="theme-networth-card p-5 rounded-2xl text-white shadow-lg" style={netWorthCardStyle}>
-                        <div className="theme-networth-caption text-[10px] font-black uppercase tracking-widest mb-1">{pageText.netWorth} ({displayCurrency})</div>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                            <div className="theme-networth-caption text-[10px] font-black uppercase tracking-widest">{pageText.netWorth} ({displayCurrency})</div>
+                            <button
+                                type="button"
+                                onClick={togglePrivacyMode}
+                                className="inline-flex items-center justify-center rounded-md border border-white/40 bg-white/10 px-2 py-1 text-[10px] font-black hover:bg-white/20"
+                                title={isPrivacyMode
+                                    ? tByLang('目前為隱藏金額，點擊顯示', 'Amounts are hidden, click to show', '金額は非表示です。クリックして表示')
+                                    : tByLang('目前為顯示金額，點擊隱藏', 'Amounts are visible, click to hide', '金額は表示中です。クリックして非表示')}
+                            >
+                                <span className="leading-none text-xs" aria-hidden="true">{isPrivacyMode ? '🛡️' : '🗡️'}</span>
+                            </button>
+                        </div>
                         <div className="text-3xl font-black tracking-tighter">{formatAmount(totals.netWorth)}</div>
                         <div className="text-xs font-black theme-networth-caption mt-2">{netWorthTier.emoji} {netWorthTier.label}</div>
                     </div>

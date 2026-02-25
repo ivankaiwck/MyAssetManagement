@@ -114,24 +114,37 @@
                                     >
                                         {isAuthLoading ? pageText.loginLoading : authUser ? pageText.logout : pageText.login}
                                     </button>
-                                    <button
-                                        onClick={() => { handleCloudDownload(); setShowSettings(false); }}
-                                        disabled={!authUser || isAuthLoading || isCloudSyncing}
-                                        className="theme-btn-accent w-full text-white px-4 py-2 rounded-lg font-bold text-sm transition-all disabled:opacity-60"
-                                    >
-                                        {isCloudSyncing
-                                            ? tByLang('同步中...', 'Syncing...', '同期中...')
-                                            : tByLang('下載雲端資料', 'Download Cloud Data', 'クラウドデータをダウンロード')}
-                                    </button>
-                                    <button
-                                        onClick={() => { handleCloudUpload(); setShowSettings(false); }}
-                                        disabled={!authUser || isAuthLoading || isCloudSyncing}
-                                        className="theme-btn-accent w-full text-white px-4 py-2 rounded-lg font-bold text-sm transition-all disabled:opacity-60"
-                                    >
-                                        {isCloudSyncing
-                                            ? tByLang('同步中...', 'Syncing...', '同期中...')
-                                            : tByLang('上載本機資料', 'Upload Local Data', 'ローカルデータをアップロード')}
-                                    </button>
+                                    {!authUser && (
+                                        <div className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-2">
+                                            {tByLang(
+                                                '登入 Google 後可使用雲端上載/下載與本機匯入/匯出。',
+                                                'Sign in with Google to use cloud upload/download and local import/export.',
+                                                'Google にログインすると、クラウドのアップロード/ダウンロードとローカルのインポート/エクスポートが利用できます。'
+                                            )}
+                                        </div>
+                                    )}
+                                    {authUser && (
+                                        <>
+                                            <button
+                                                onClick={() => { handleCloudDownload(); setShowSettings(false); }}
+                                                disabled={isAuthLoading || isCloudSyncing}
+                                                className="theme-btn-accent w-full text-white px-4 py-2 rounded-lg font-bold text-sm transition-all disabled:opacity-60"
+                                            >
+                                                {isCloudSyncing
+                                                    ? tByLang('同步中...', 'Syncing...', '同期中...')
+                                                    : tByLang('下載雲端資料', 'Download Cloud Data', 'クラウドデータをダウンロード')}
+                                            </button>
+                                            <button
+                                                onClick={() => { handleCloudUpload(); setShowSettings(false); }}
+                                                disabled={isAuthLoading || isCloudSyncing}
+                                                className="theme-btn-accent w-full text-white px-4 py-2 rounded-lg font-bold text-sm transition-all disabled:opacity-60"
+                                            >
+                                                {isCloudSyncing
+                                                    ? tByLang('同步中...', 'Syncing...', '同期中...')
+                                                    : tByLang('上載本機資料', 'Upload Local Data', 'ローカルデータをアップロード')}
+                                            </button>
+                                        </>
+                                    )}
                                     <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{pageText.displayCurrency}</div>
                                     <select
                                         value={displayCurrency}
@@ -160,18 +173,22 @@
                                     >
                                         {themeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                                     </select>
-                                    <button
-                                        onClick={() => { handleExportData(); setShowSettings(false); }}
-                                        className="theme-btn-gold w-full text-white px-4 py-2 rounded-lg font-bold text-sm transition-all"
-                                    >
-                                        {pageText.exportData}
-                                    </button>
-                                    <button
-                                        onClick={() => { openImportPicker(); setShowSettings(false); }}
-                                        className="w-full theme-tab-inactive px-4 py-2 rounded-lg font-bold text-sm transition-all"
-                                    >
-                                        {pageText.importData}
-                                    </button>
+                                    {authUser && (
+                                        <>
+                                            <button
+                                                onClick={() => { handleExportData(); setShowSettings(false); }}
+                                                className="theme-btn-gold w-full text-white px-4 py-2 rounded-lg font-bold text-sm transition-all"
+                                            >
+                                                {pageText.exportData}
+                                            </button>
+                                            <button
+                                                onClick={() => { openImportPicker(); setShowSettings(false); }}
+                                                className="w-full theme-tab-inactive px-4 py-2 rounded-lg font-bold text-sm transition-all"
+                                            >
+                                                {pageText.importData}
+                                            </button>
+                                        </>
+                                    )}
                                     <button
                                         onClick={() => { resetToSeed(); setShowSettings(false); }}
                                         title={tByLang('可愛重設：清空目前資料並回到範例帳本', 'Cute reset: clear current data and restore sample ledger', 'かわいくリセット：現在のデータを消去してサンプル台帳に戻します')}

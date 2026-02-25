@@ -691,7 +691,11 @@
                                         <span>
                                             {isPolicyFullyPaid
                                                 ? ''
-                                                : ` · ${item.premiumFrequency === 'yearly' ? '每年' : '每月'} · 扣款日 ${insuranceHasPaymentDay ? `${insurancePaymentDay} 號` : '--'} · 下期 ${nextBillingDateKey || '--'}`}
+                                                : tByLang(
+                                                    ` · ${item.premiumFrequency === 'yearly' ? '每年' : '每月'} · 扣款日 ${insuranceHasPaymentDay ? `${insurancePaymentDay} 號` : '--'} · 下期 ${nextBillingDateKey || '--'}`,
+                                                    ` · ${item.premiumFrequency === 'yearly' ? 'yearly' : 'monthly'} · Debit Day ${insuranceHasPaymentDay ? `${insurancePaymentDay}` : '--'} · Next ${nextBillingDateKey || '--'}`,
+                                                    ` ・${item.premiumFrequency === 'yearly' ? '毎年' : '毎月'} ・引落日 ${insuranceHasPaymentDay ? `${insurancePaymentDay}日` : '--'} ・次回 ${nextBillingDateKey || '--'}`
+                                                )}
                                         </span>
                                         {isPolicyFullyPaid && (
                                             <span className={`ml-1 ${PAID_OFF_BADGE_CLASS}`}>{tByLang('保費全部繳清', 'Paid Off', '払込完了')}</span>
@@ -716,7 +720,11 @@
                                                 : `保険料 ${formatAmount(item.premiumAmount || 0)} ${item.currency} ・支払済 ${effectivePremiumPaidCount}${premiumTermCap > 0 ? `/${premiumTermCap}` : ''} 期 ・配当 ${distributionPaidYears} 年`
                                         )}</span>
                                         : isLinkedInsurance
-                                            ? `保單市值 ${formatAmount(mktValDisplay)} ${displayCurrency} · 數量 ${formatAmount(item.quantity || 0)}`
+                                            ? tByLang(
+                                                `保單市值 ${formatAmount(mktValDisplay)} ${displayCurrency} · 數量 ${formatAmount(item.quantity || 0)}`,
+                                                `Policy Value ${formatAmount(mktValDisplay)} ${displayCurrency} · Units ${formatAmount(item.quantity || 0)}`,
+                                                `保単価値 ${formatAmount(mktValDisplay)} ${displayCurrency} ・数量 ${formatAmount(item.quantity || 0)}`
+                                            )
                                             : <span className="text-amber-700">保費 {formatAmount(item.premiumAmount || 0)} {item.currency}</span>}
                                 {isLifeInsurance && isPolicyFullyPaid && (
                                     <span className={`ml-1 ${PAID_OFF_BADGE_CLASS}`}>{tByLang('保費全部繳清', 'Paid Off', '払込完了')}</span>
@@ -732,18 +740,22 @@
                         {isHealthInsurance && (
                             isPolicyFullyPaid
                                 ? <div className="text-xs"><span className={PAID_OFF_BADGE_CLASS}>{tByLang('保費全部繳清', 'Policy fully paid', 'この保険は払込完了')}</span></div>
-                                : <div className="text-xs text-slate-500 font-bold">已繳 {effectivePremiumPaidCount} {item.insuranceEndDate ? `/ ${(totalBillingPeriods ?? '--').toString()}期` : '期'}</div>
+                                : <div className="text-xs text-slate-500 font-bold">{tByLang(
+                                    `已繳 ${effectivePremiumPaidCount} ${item.insuranceEndDate ? `/ ${(totalBillingPeriods ?? '--').toString()}期` : '期'}`,
+                                    `Paid ${effectivePremiumPaidCount} ${item.insuranceEndDate ? `/ ${(totalBillingPeriods ?? '--').toString()} terms` : 'terms'}`,
+                                    `支払済 ${effectivePremiumPaidCount} ${item.insuranceEndDate ? `/ ${(totalBillingPeriods ?? '--').toString()}期` : '期'}`
+                                )}</div>
                         )}
                         {isHealthInsurance && item.insuranceEndDate && (
                             <div className="text-[11px] text-slate-500 font-bold space-y-1">
-                                <div>保單生效日: {item.insuranceStartDate || '--'}</div>
-                                <div>保單終止日: {item.insuranceEndDate}</div>
+                                <div>{tByLang('保單生效日', 'Policy Effective Date', '保険開始日')}: {item.insuranceStartDate || '--'}</div>
+                                <div>{tByLang('保單終止日', 'Policy End Date', '保険終了日')}: {item.insuranceEndDate}</div>
                             </div>
                         )}
                         {isInsuranceCategory && (
                             <div className="text-[11px] text-slate-500 font-bold space-y-1">
-                                {insuranceProvider && <div className="text-indigo-700">保險公司：{insuranceProvider}</div>}
-                                {insurancePolicyNumber && <div className="text-violet-700">保單號：{insurancePolicyNumber}</div>}
+                                {insuranceProvider && <div className="text-indigo-700">{tByLang('保險公司', 'Insurance Company', '保険会社')}：{insuranceProvider}</div>}
+                                {insurancePolicyNumber && <div className="text-violet-700">{tByLang('保單號', 'Policy Number', '証券番号')}：{insurancePolicyNumber}</div>}
                                 {insuranceBeneficiary && <div className="text-emerald-700">受益人：{insuranceBeneficiary}</div>}
                                 {insuranceCoverageAmount > 0 && <div className="text-amber-700">保額：{formatAmount(insuranceCoverageAmount)} {item.currency}</div>}
                                 {isLifeInsurance && (insuranceBasePremiumAmount > 0 || (insuranceHasSupplementaryBenefit && insuranceSupplementaryPremiumAmount > 0)) && (
@@ -1244,8 +1256,8 @@
                                         )}
                                         {isInsuranceCategory && (
                                             <div className="text-[10px] text-slate-500 font-medium mt-1 space-y-0.5">
-                                                {insuranceProvider && <div className="text-indigo-700">保險公司：{insuranceProvider}</div>}
-                                                {insurancePolicyNumber && <div className="text-violet-700">保單號：{insurancePolicyNumber}</div>}
+                                                {insuranceProvider && <div className="text-indigo-700">{tByLang('保險公司', 'Insurance Company', '保険会社')}：{insuranceProvider}</div>}
+                                                {insurancePolicyNumber && <div className="text-violet-700">{tByLang('保單號', 'Policy Number', '証券番号')}：{insurancePolicyNumber}</div>}
                                                 {insuranceBeneficiary && <div className="text-emerald-700">受益人：{insuranceBeneficiary}</div>}
                                                 {isLifeInsurance && (insuranceBasePremiumAmount > 0 || (insuranceHasSupplementaryBenefit && insuranceSupplementaryPremiumAmount > 0)) && (
                                                     <div className="text-amber-700">
@@ -1297,7 +1309,11 @@
                                             ) : isHealthInsurance ? (
                                                 <div className={`font-bold ${insuranceAmountMainClass}`}>
                                                     {formatAmount(premiumAmount)} {item.currency}
-                                                    <div className="text-[10px] text-slate-400">/{item.premiumFrequency === 'yearly' ? '每年' : '每月'} · 扣款日 {insuranceHasPaymentDay ? `${insurancePaymentDay} 號` : '--'}</div>
+                                                    <div className="text-[10px] text-slate-400">{tByLang(
+                                                        `/${item.premiumFrequency === 'yearly' ? '每年' : '每月'} · 扣款日 ${insuranceHasPaymentDay ? `${insurancePaymentDay} 號` : '--'}`,
+                                                        `/${item.premiumFrequency === 'yearly' ? 'yearly' : 'monthly'} · Debit Day ${insuranceHasPaymentDay ? `${insurancePaymentDay}` : '--'}`,
+                                                        `/${item.premiumFrequency === 'yearly' ? '毎年' : '毎月'} ・引落日 ${insuranceHasPaymentDay ? `${insurancePaymentDay}日` : '--'}`
+                                                    )}</div>
                                                 </div>
                                             ) : isLifeInsurance ? (
                                                 hasPremiumPlan ? (
@@ -1311,7 +1327,7 @@
                                             ) : isLinkedInsurance ? (
                                                 <>
                                                     <div className="font-bold text-slate-800">{formatAmount(mktValDisplay)} <span className="text-[9px] text-slate-400">{displayCurrency}</span></div>
-                                                    <div className="text-[10px] text-slate-400">數量 {formatAmount(item.quantity || 0)}</div>
+                                                    <div className="text-[10px] text-slate-400">{tByLang('數量', 'Units', '数量')} {formatAmount(item.quantity || 0)}</div>
                                                 </>
                                             ) : (
                                                 <div className="font-bold text-slate-400">--</div>
@@ -1370,9 +1386,9 @@
                                                     <div className={`font-bold ${insuranceAmountMainClass}`}>{formatAmount(premiumAmount)} {item.currency}</div>
                                                     {!isPolicyFullyPaid ? (
                                                         <>
-                                                            <div className="text-[10px] text-slate-400">繳費週期：{item.premiumFrequency === 'yearly' ? '每年' : '每月'}</div>
-                                                            <div className="text-[10px] text-slate-400">扣款日：{insuranceHasPaymentDay ? `${insurancePaymentDay} 號` : '--'}</div>
-                                                            <div className="text-[10px] text-slate-400">下期扣款日：{nextBillingDateKey || '--'}</div>
+                                                            <div className="text-[10px] text-slate-400">{tByLang('繳費週期', 'Premium Cycle', '払込周期')}：{item.premiumFrequency === 'yearly' ? tByLang('每年', 'yearly', '毎年') : tByLang('每月', 'monthly', '毎月')}</div>
+                                                            <div className="text-[10px] text-slate-400">{tByLang('扣款日', 'Debit Day', '引落日')}：{insuranceHasPaymentDay ? tByLang(`${insurancePaymentDay} 號`, `${insurancePaymentDay}`, `${insurancePaymentDay}日`) : '--'}</div>
+                                                            <div className="text-[10px] text-slate-400">{tByLang('下期扣款日', 'Next Debit Date', '次回引落日')}：{nextBillingDateKey || '--'}</div>
                                                         </>
                                                     ) : (
                                                         <div className="text-[10px]"><span className={PAID_OFF_BADGE_CLASS}>{tByLang('保費全部繳清', 'Policy fully paid', 'この保険は払込完了')}</span></div>
@@ -1383,8 +1399,8 @@
                                                 </>
                                             ) : isHealthInsurance ? (
                                                 <>
-                                                    <div className="font-medium text-slate-700">{effectivePremiumPaidCount.toLocaleString()} 期</div>
-                                                    <div className="text-[10px] text-slate-400">生效 {item.insuranceStartDate || '--'}{item.insuranceEndDate ? ` · 終止 ${item.insuranceEndDate}` : ''}</div>
+                                                    <div className="font-medium text-slate-700">{tByLang(`${effectivePremiumPaidCount.toLocaleString()} 期`, `${effectivePremiumPaidCount.toLocaleString()} terms`, `${effectivePremiumPaidCount.toLocaleString()}期`)}</div>
+                                                    <div className="text-[10px] text-slate-400">{tByLang('生效', 'Effective', '開始')} {item.insuranceStartDate || '--'}{item.insuranceEndDate ? tByLang(` · 終止 ${item.insuranceEndDate}`, ` · End ${item.insuranceEndDate}`, ` ・終了 ${item.insuranceEndDate}`) : ''}</div>
                                                 </>
                                             ) : isLifeInsurance ? (
                                                 hasPremiumPlan ? (
@@ -1392,7 +1408,11 @@
                                                         <div className={`font-medium ${isPolicyFullyPaid ? 'text-emerald-700 font-black' : 'text-slate-700'}`}>
                                                             {isPolicyFullyPaid
                                                                 ? tByLang('保費全部繳清', 'Paid Off', '払込完了')
-                                                                : `${effectivePremiumPaidCount.toLocaleString()}${premiumTermCap > 0 ? ` / ${premiumTermCap}` : ''} 期`}
+                                                                : tByLang(
+                                                                    `${effectivePremiumPaidCount.toLocaleString()}${premiumTermCap > 0 ? ` / ${premiumTermCap}` : ''} 期`,
+                                                                    `${effectivePremiumPaidCount.toLocaleString()}${premiumTermCap > 0 ? ` / ${premiumTermCap}` : ''} terms`,
+                                                                    `${effectivePremiumPaidCount.toLocaleString()}${premiumTermCap > 0 ? ` / ${premiumTermCap}` : ''}期`
+                                                                )}
                                                         </div>
                                                         {hasDistributionBenefit && <div className="text-[10px] text-slate-400">{tByLang(`保單年度 ${currentPolicyYear || '--'} · 已派發 ${distributionPaidYears} 年`, `Policy Year ${currentPolicyYear || '--'} · Distributed ${distributionPaidYears} yrs`, `保険年度 ${currentPolicyYear || '--'} ・配当 ${distributionPaidYears} 年`)}</div>}
                                                         {annualDistributionAmount > 0 && <div className="text-[10px] text-indigo-600">{tByLang(`每年派發 ${formatAmount(annualDistributionAmount)} ${item.currency}`, `Annual Distribution ${formatAmount(annualDistributionAmount)} ${item.currency}`, `年間配当 ${formatAmount(annualDistributionAmount)} ${item.currency}`)}</div>}
@@ -1402,8 +1422,8 @@
                                                 )
                                             ) : isLinkedInsurance ? (
                                                 <>
-                                                    <div className="font-medium text-slate-700">{effectivePremiumPaidCount.toLocaleString()} 期</div>
-                                                    <div className="text-[10px] text-slate-400">現價 {formatAmount(item.currentPrice || 0)} · 成本 {formatAmount(item.costBasis || 0)} {item.currency}</div>
+                                                    <div className="font-medium text-slate-700">{tByLang(`${effectivePremiumPaidCount.toLocaleString()} 期`, `${effectivePremiumPaidCount.toLocaleString()} terms`, `${effectivePremiumPaidCount.toLocaleString()}期`)}</div>
+                                                    <div className="text-[10px] text-slate-400">{tByLang('現價', 'Price', '現価')} {formatAmount(item.currentPrice || 0)} · {tByLang('成本', 'Cost', '原価')} {formatAmount(item.costBasis || 0)} {item.currency}</div>
                                                 </>
                                             ) : (
                                                 <div className="font-medium text-slate-400">--</div>
@@ -1413,7 +1433,11 @@
                                                 <div className="font-medium text-slate-700">{formatAmount(mktValDisplay)} <span className="text-[9px]">{displayCurrency}</span></div>
                                                 {cashflowAutoRulesByLiquidAssetId[item.id]?.length > 0 && (
                                                     <div className="text-[10px] text-indigo-500 font-black mt-1">
-                                                        已綁定 {cashflowAutoRulesByLiquidAssetId[item.id].length} 筆自動入帳/扣款規則
+                                                        {tByLang(
+                                                            `已綁定 ${cashflowAutoRulesByLiquidAssetId[item.id].length} 筆自動入帳/扣款規則`,
+                                                            `Bound ${cashflowAutoRulesByLiquidAssetId[item.id].length} auto posting rules`,
+                                                            `${cashflowAutoRulesByLiquidAssetId[item.id].length} 件の自動入出金ルールを連携済み`
+                                                        )}
                                                     </div>
                                                 )}
                                             </>
@@ -1470,20 +1494,24 @@
                                             {isPolicyFullyPaid ? (
                                                 <>
                                                     <div className="font-medium"><span className={PAID_OFF_BADGE_CLASS}>{tByLang('保費全部繳清', 'Policy fully paid', 'この保険は払込完了')}</span></div>
-                                                    <div className="text-[10px] text-slate-400">保單生效日: {item.insuranceStartDate || '--'}</div>
-                                                    {item.insuranceEndDate && <div className="text-[10px] text-slate-400">保單終止日: {item.insuranceEndDate}</div>}
+                                                    <div className="text-[10px] text-slate-400">{tByLang('保單生效日', 'Policy Effective Date', '保険開始日')}: {item.insuranceStartDate || '--'}</div>
+                                                    {item.insuranceEndDate && <div className="text-[10px] text-slate-400">{tByLang('保單終止日', 'Policy End Date', '保険終了日')}: {item.insuranceEndDate}</div>}
                                                     {isLifeInsurance && hasDistributionBenefit && <div className="text-[10px] text-slate-400">{tByLang(`保單年度 ${currentPolicyYear || '--'} · 已派發 ${distributionPaidYears} 年`, `Policy Year ${currentPolicyYear || '--'} · Distributed ${distributionPaidYears} yrs`, `保険年度 ${currentPolicyYear || '--'} ・配当 ${distributionPaidYears} 年`)}</div>}
                                                 </>
                                             ) : item.insuranceEndDate ? (
                                                 <>
-                                                    <div className="font-medium text-slate-700">{effectivePremiumPaidCount.toLocaleString()}{premiumTermCap > 0 ? ` / ${premiumTermCap}` : ` / ${(totalBillingPeriods ?? '--').toString()}`}期</div>
-                                                    <div className="text-[10px] text-slate-400">保單生效日: {item.insuranceStartDate || '--'}</div>
-                                                    <div className="text-[10px] text-slate-400">保單終止日: {item.insuranceEndDate}</div>
+                                                    <div className="font-medium text-slate-700">{tByLang(
+                                                        `${effectivePremiumPaidCount.toLocaleString()}${premiumTermCap > 0 ? ` / ${premiumTermCap}` : ` / ${(totalBillingPeriods ?? '--').toString()}`}期`,
+                                                        `${effectivePremiumPaidCount.toLocaleString()}${premiumTermCap > 0 ? ` / ${premiumTermCap}` : ` / ${(totalBillingPeriods ?? '--').toString()}`} terms`,
+                                                        `${effectivePremiumPaidCount.toLocaleString()}${premiumTermCap > 0 ? ` / ${premiumTermCap}` : ` / ${(totalBillingPeriods ?? '--').toString()}`}期`
+                                                    )}</div>
+                                                    <div className="text-[10px] text-slate-400">{tByLang('保單生效日', 'Policy Effective Date', '保険開始日')}: {item.insuranceStartDate || '--'}</div>
+                                                    <div className="text-[10px] text-slate-400">{tByLang('保單終止日', 'Policy End Date', '保険終了日')}: {item.insuranceEndDate}</div>
                                                     {isLifeInsurance && hasDistributionBenefit && <div className="text-[10px] text-slate-400">{tByLang(`保單年度 ${currentPolicyYear || '--'} · 已派發 ${distributionPaidYears} 年`, `Policy Year ${currentPolicyYear || '--'} · Distributed ${distributionPaidYears} yrs`, `保険年度 ${currentPolicyYear || '--'} ・配当 ${distributionPaidYears} 年`)}</div>}
                                                 </>
                                             ) : (
                                                 <>
-                                                    <div className="font-medium text-slate-700">{effectivePremiumPaidCount.toLocaleString()} 期</div>
+                                                    <div className="font-medium text-slate-700">{tByLang(`${effectivePremiumPaidCount.toLocaleString()} 期`, `${effectivePremiumPaidCount.toLocaleString()} terms`, `${effectivePremiumPaidCount.toLocaleString()}期`)}</div>
                                                     {isLifeInsurance && hasDistributionBenefit && <div className="text-[10px] text-slate-400">{tByLang(`保單年度 ${currentPolicyYear || '--'} · 已派發 ${distributionPaidYears} 年`, `Policy Year ${currentPolicyYear || '--'} · Distributed ${distributionPaidYears} yrs`, `保険年度 ${currentPolicyYear || '--'} ・配当 ${distributionPaidYears} 年`)}</div>}
                                                 </>
                                             )}

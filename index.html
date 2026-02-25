@@ -730,6 +730,7 @@
             const [cashflowRuleFilter, setCashflowRuleFilter] = useState('ALL');
             const [cashflowRuleSortMode, setCashflowRuleSortMode] = useState('START_DESC');
             const [cashflowRulesVisibleCount, setCashflowRulesVisibleCount] = useState(20);
+            const [isPrivacyMode, setIsPrivacyMode] = useState(() => Boolean(parseStorage(STORAGE_KEYS.privacyMode, false)));
             const createInitialCashflowForm = () => {
                 const today = toDateKey(new Date());
                 return {
@@ -1025,6 +1026,10 @@
             }, [themeId]);
 
             useEffect(() => {
+                localStorage.setItem(STORAGE_KEYS.privacyMode, JSON.stringify(Boolean(isPrivacyMode)));
+            }, [isPrivacyMode]);
+
+            useEffect(() => {
                 if (!isModalOpen) return;
 
                 const body = document.body;
@@ -1061,7 +1066,9 @@
 
             useEffect(() => {
                 if (window.lucide) window.lucide.createIcons();
-            }, [assets, isModalOpen, isCashflowModalOpen, selectedCategories, sortMode, isUpdatingPrice]);
+            }, [assets, isModalOpen, isCashflowModalOpen, selectedCategories, sortMode, isUpdatingPrice, isPrivacyMode]);
+
+            const formatAmountForDisplay = (value) => (isPrivacyMode ? '••••' : formatAmount(value));
 
             const pageText = useMemo(() => UI_TEXT[pageLanguage] || UI_TEXT['zh-Hant'], [pageLanguage]);
             const tByLang = (zh, en, ja) => (pageLanguage === 'en-US' ? en : (pageLanguage === 'ja-JP' ? ja : zh));
@@ -1579,6 +1586,18 @@
                 });
                 return map;
             }, [liquidAssetOptions]);
+
+            const liquidAssetMetaById = useMemo(() => {
+                const map = {};
+                assets.forEach(asset => {
+                    if (!asset || asset.category !== 'LIQUID' || !asset.id) return;
+                    map[asset.id] = {
+                        currency: asset.currency || 'HKD',
+                        quantity: Number(asset.quantity || 0)
+                    };
+                });
+                return map;
+            }, [assets]);
 
             const cashflowRulesByLiquidAssetId = useMemo(() => {
                 const grouped = {};
@@ -2140,6 +2159,96 @@
                     return;
                 }
 
+                const applyImmediatePostingsNow = (entry, baseAssets, baseAppliedPostings, baseAppliedOccurrenceKeys) => {
+                    if (!entry || !entry.targetLiquidAssetId) return;
+
+                    const today = new Date();
+                    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                    const scheduleType = entry.scheduleType || (entry.frequency === 'ONE_TIME' ? 'ONE_TIME' : 'RECURRING');
+
+                    let occurrenceDateKeys = [];
+                    if (scheduleType === 'ONE_TIME') {
+                        const dateCandidates = Array.isArray(entry.oneTimeDates) && entry.oneTimeDates.length > 0
+                            ? entry.oneTimeDates
+                            : [entry.startDate];
+                        occurrenceDateKeys = Array.from(new Set(dateCandidates
+                            .map(dateKey => ({ dateKey, parsed: parseDateKey(dateKey || '') }))
+                            .filter(item => item.parsed && item.parsed.getTime() <= todayOnly.getTime())
+                            .map(item => item.dateKey)
+                        )).sort();
+                    } else {
+                        const parsedStart = parseDateKey(entry.startDate || '');
+                        if (parsedStart) {
+                            const startOnly = new Date(parsedStart.getFullYear(), parsedStart.getMonth(), parsedStart.getDate());
+                            const parsedEnd = parseDateKey(entry.endDate || '');
+                            const endOnly = parsedEnd
+                                ? new Date(parsedEnd.getFullYear(), parsedEnd.getMonth(), parsedEnd.getDate())
+                                : null;
+                            const upperBound = endOnly && endOnly.getTime() < todayOnly.getTime() ? endOnly : todayOnly;
+                            const cursor = new Date(startOnly.getFullYear(), startOnly.getMonth(), startOnly.getDate());
+                            const maxCycles = 5000;
+                            for (let i = 0; i < maxCycles && cursor.getTime() <= upperBound.getTime(); i += 1) {
+                                if (isEntryOnDate(entry, cursor)) occurrenceDateKeys.push(toDateKey(cursor));
+                                cursor.setDate(cursor.getDate() + 1);
+                            }
+                        }
+                    }
+
+                    if (!occurrenceDateKeys.length) return;
+
+                    const appliedKeySet = new Set([
+                        ...(Array.isArray(baseAppliedOccurrenceKeys) ? baseAppliedOccurrenceKeys : []),
+                        ...Object.keys(baseAppliedPostings || {})
+                    ]);
+                    const nextAppliedPostings = { ...(baseAppliedPostings || {}) };
+                    const nextAssets = Array.isArray(baseAssets) ? [...baseAssets] : [];
+
+                    const liquidAssetIndexMap = {};
+                    nextAssets.forEach((asset, index) => {
+                        if (asset.category === 'LIQUID') liquidAssetIndexMap[asset.id] = index;
+                    });
+
+                    let appliedCount = 0;
+                    occurrenceDateKeys.forEach(dateKey => {
+                        const occurrenceKey = `${entry.id}@${dateKey}@${entry.targetLiquidAssetId}`;
+                        if (appliedKeySet.has(occurrenceKey)) return;
+
+                        const targetIndex = liquidAssetIndexMap[entry.targetLiquidAssetId];
+                        if (!Number.isInteger(targetIndex)) return;
+                        const targetAsset = nextAssets[targetIndex];
+                        if (!targetAsset || targetAsset.category !== 'LIQUID') return;
+
+                        const amountHKD = toHKD(Number(entry.amount || 0), entry.currency || 'HKD');
+                        const amountInTargetCurrency = fromHKD(amountHKD, targetAsset.currency);
+                        const signedAmount = entry.type === 'INCOME' ? amountInTargetCurrency : -amountInTargetCurrency;
+                        const nextQuantity = Number(targetAsset.quantity || 0) + signedAmount;
+
+                        nextAssets[targetIndex] = {
+                            ...targetAsset,
+                            quantity: Number(nextQuantity.toFixed(6))
+                        };
+
+                        nextAppliedPostings[occurrenceKey] = {
+                            entryId: entry.id,
+                            targetLiquidAssetId: entry.targetLiquidAssetId,
+                            signedAmount: Number(signedAmount.toFixed(6)),
+                            targetCurrency: targetAsset.currency,
+                            type: entry.type
+                        };
+                        appliedKeySet.add(occurrenceKey);
+                        appliedCount += 1;
+                    });
+
+                    if (appliedCount <= 0) return;
+                    setAssets(nextAssets);
+                    setCashflowAppliedPostings(nextAppliedPostings);
+                    setCashflowAppliedOccurrenceKeys(Array.from(appliedKeySet));
+                };
+
+                let immediateAssetsBase = assets;
+                let immediateAppliedPostingsBase = cashflowAppliedPostings;
+                let immediateAppliedOccurrenceKeysBase = cashflowAppliedOccurrenceKeys;
+
                 if (submission.isEditing) {
                     const prevEntry = cashflowEntries.find(item => item.id === editingCashflowId);
                     const nextTargetId = submission.nextEntry.targetLiquidAssetId || '';
@@ -2206,11 +2315,16 @@
                         setAssets(nextAssets);
                         setCashflowAppliedPostings(nextAppliedPostings);
                         setCashflowAppliedOccurrenceKeys(Array.from(nextAppliedKeySet));
+                        immediateAssetsBase = nextAssets;
+                        immediateAppliedPostingsBase = nextAppliedPostings;
+                        immediateAppliedOccurrenceKeysBase = Array.from(nextAppliedKeySet);
                     }
 
                     setCashflowEntries(prev => sanitizeCashflowEntries(prev.map(item => item.id === editingCashflowId ? submission.nextEntry : item)));
+                    applyImmediatePostingsNow(submission.nextEntry, immediateAssetsBase, immediateAppliedPostingsBase, immediateAppliedOccurrenceKeysBase);
                 } else {
                     setCashflowEntries(prev => sanitizeCashflowEntries([...prev, submission.nextEntry]));
+                    applyImmediatePostingsNow(submission.nextEntry, immediateAssetsBase, immediateAppliedPostingsBase, immediateAppliedOccurrenceKeysBase);
                 }
                 setCashflowForm(prev => ({
                     ...prev,
@@ -2586,7 +2700,12 @@
                         cashflowEntries,
                         cashflowAppliedOccurrenceKeys,
                         cashflowAppliedPostings,
-                        cashflowLastAutoApplyDate
+                        cashflowLastAutoApplyDate,
+                        currencyRates,
+                        currencyRatesUpdatedAt: lastRateUpdate instanceof Date ? lastRateUpdate.getTime() : 0,
+                        pageLanguage,
+                        themeId,
+                        recentCurrencies
                     });
                     const fileName = `asset-tracker-backup-${new Date().toISOString().slice(0, 10)}.json`;
                     downloadJsonFile(payload, fileName);
@@ -2660,7 +2779,12 @@
                         nextCashflowEntries,
                         nextCashflowAppliedOccurrenceKeys,
                         nextCashflowAppliedPostings,
-                        nextCashflowLastAutoApplyDate
+                        nextCashflowLastAutoApplyDate,
+                        nextCurrencyRates,
+                        nextCurrencyRatesUpdatedAt,
+                        nextPageLanguage,
+                        nextThemeId,
+                        nextRecentCurrencies
                     } = parseImportedBackup(parsed, new Date(Date.now() - ONE_DAY_MS));
 
                     if (!nextAssets || !nextAssets.every(isValidAssetRecord)) {
@@ -2678,6 +2802,26 @@
                     setCashflowAppliedOccurrenceKeys(nextCashflowAppliedOccurrenceKeys);
                     setCashflowAppliedPostings(nextCashflowAppliedPostings);
                     setCashflowLastAutoApplyDate(nextCashflowLastAutoApplyDate);
+                    if (nextCurrencyRates && typeof nextCurrencyRates === 'object') {
+                        setCurrencyRates(nextCurrencyRates);
+                        localStorage.setItem(STORAGE_KEYS.currencyRates, JSON.stringify(nextCurrencyRates));
+                    }
+                    if (Number.isFinite(nextCurrencyRatesUpdatedAt) && nextCurrencyRatesUpdatedAt > 0) {
+                        setLastRateUpdate(new Date(nextCurrencyRatesUpdatedAt));
+                        localStorage.setItem(STORAGE_KEYS.currencyRatesUpdatedAt, JSON.stringify(nextCurrencyRatesUpdatedAt));
+                    }
+                    if (typeof nextPageLanguage === 'string' && PAGE_LANGUAGE_OPTIONS.some(item => item.value === nextPageLanguage)) {
+                        setPageLanguage(nextPageLanguage);
+                        localStorage.setItem(STORAGE_KEYS.pageLanguage, JSON.stringify(nextPageLanguage));
+                    }
+                    if (typeof nextThemeId === 'string' && themeIds.includes(nextThemeId)) {
+                        setThemeId(nextThemeId);
+                        localStorage.setItem(STORAGE_KEYS.themeId, JSON.stringify(nextThemeId));
+                    }
+                    if (Array.isArray(nextRecentCurrencies)) {
+                        setRecentCurrencies(nextRecentCurrencies);
+                        localStorage.setItem(STORAGE_KEYS.recentCurrencies, JSON.stringify(nextRecentCurrencies));
+                    }
                     localStorage.setItem(STORAGE_KEYS.monthlySnapshots, JSON.stringify(safeSnapshots));
                     localStorage.setItem(STORAGE_KEYS.cashflowEntries, JSON.stringify(nextCashflowEntries));
                     localStorage.setItem(STORAGE_KEYS.cashflowAppliedOccurrenceKeys, JSON.stringify(nextCashflowAppliedOccurrenceKeys));
@@ -3414,7 +3558,7 @@
                         totalAssetsCardStyle={totalAssetsCardStyle}
                         totalLiabilitiesCardStyle={totalLiabilitiesCardStyle}
                         totals={totals}
-                        formatAmount={formatAmount}
+                        formatAmount={formatAmountForDisplay}
                         netWorthTier={netWorthTier}
                         overviewPanelCardStyle={overviewPanelCardStyle}
                         assetMix={assetMix}
@@ -3423,6 +3567,9 @@
                         selectedMixItemStyle={selectedMixItemStyle}
                         detailMix={detailMix}
                         detailDonutCenterCardStyle={detailDonutCenterCardStyle}
+                        isPrivacyMode={isPrivacyMode}
+                        togglePrivacyMode={() => setIsPrivacyMode(prev => !prev)}
+                        tByLang={tByLang}
                     />
 
                     <FinanceSectionView
@@ -3444,7 +3591,7 @@
                         describeArc={describeArc}
                         selectedMixItemStyle={selectedMixItemStyle}
                         overviewPanelCardStyle={overviewPanelCardStyle}
-                        formatAmount={formatAmount}
+                        formatAmount={formatAmountForDisplay}
                         displayCurrency={displayCurrency}
                         MonthPicker={MonthPicker}
                         selectedCashflowMonth={selectedCashflowMonth}
@@ -3474,6 +3621,7 @@
                         CASHFLOW_TYPES={CASHFLOW_TYPES}
                         CASHFLOW_FREQUENCIES={CASHFLOW_FREQUENCIES}
                         liquidAssetLabelById={liquidAssetLabelById}
+                        liquidAssetMetaById={liquidAssetMetaById}
                         cashflowTriggerInfoById={cashflowTriggerInfoById}
                         fromHKD={fromHKD}
                         toHKD={toHKD}
@@ -3509,7 +3657,7 @@
                             CATEGORIES={CATEGORIES}
                             categoryMixHexByKey={categoryMixHexByKey}
                             translate={translate}
-                            formatAmount={formatAmount}
+                            formatAmount={formatAmountForDisplay}
                         />
                     ) : (
                         <AssetDetailListView
@@ -3522,7 +3670,7 @@
                             displayCurrency={displayCurrency}
                             expandedAccounts={expandedAccounts}
                             toggleAccountExpand={toggleAccountExpand}
-                            formatAmount={formatAmount}
+                            formatAmount={formatAmountForDisplay}
                             openEdit={openEdit}
                             tByLang={tByLang}
                             cashflowAutoRulesByLiquidAssetId={cashflowAutoRulesByLiquidAssetId}
@@ -3582,7 +3730,7 @@
                         bankWealthMetrics={bankWealthMetrics}
                         mortgageMetrics={mortgageMetrics}
                         loanMetrics={loanMetrics}
-                        formatAmount={formatAmount}
+                        formatAmount={formatAmountForDisplay}
                         premiumTotal={premiumTotal}
                         orderedCurrencies={orderedCurrencies}
                         handleDelete={handleDelete}

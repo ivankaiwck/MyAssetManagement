@@ -48,6 +48,7 @@
         CASHFLOW_TYPES,
         CASHFLOW_FREQUENCIES,
         liquidAssetLabelById,
+        liquidAssetMetaById,
         cashflowTriggerInfoById,
         fromHKD,
         toHKD,
@@ -281,6 +282,7 @@
                             CASHFLOW_TYPES={CASHFLOW_TYPES}
                             CASHFLOW_FREQUENCIES={CASHFLOW_FREQUENCIES}
                             liquidAssetLabelById={liquidAssetLabelById}
+                            liquidAssetMetaById={liquidAssetMetaById}
                             cashflowTriggerInfoById={cashflowTriggerInfoById}
                             formatAmount={formatAmount}
                             fromHKD={fromHKD}

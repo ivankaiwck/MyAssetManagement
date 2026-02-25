@@ -10,12 +10,25 @@
     const {
         parseDateKey,
         sanitizeCashflowEntries,
-        normalizeDateKeyOrFallback
+        normalizeDateKeyOrFallback,
+        sanitizeCurrencyRates
     } = window.APP_UTILS || {};
 
-    if (!CATEGORIES || !CURRENCIES || !CASHFLOW_TYPES || !CASHFLOW_SCHEDULE_TYPES || !CASHFLOW_FREQUENCIES || !parseDateKey || !sanitizeCashflowEntries || !normalizeDateKeyOrFallback) {
+    if (!CATEGORIES || !CURRENCIES || !CASHFLOW_TYPES || !CASHFLOW_SCHEDULE_TYPES || !CASHFLOW_FREQUENCIES || !parseDateKey || !sanitizeCashflowEntries || !normalizeDateKeyOrFallback || !sanitizeCurrencyRates) {
         throw new Error('constants.js or utils.js is missing or incomplete for data-utils.js');
     }
+
+    const sanitizeRecentCurrencies = (rawList) => {
+        if (!Array.isArray(rawList)) return [];
+        const unique = [];
+        rawList.forEach(item => {
+            const currency = typeof item === 'string' ? item : '';
+            if (!CURRENCIES.includes(currency)) return;
+            if (unique.includes(currency)) return;
+            unique.push(currency);
+        });
+        return unique.slice(0, 6);
+    };
 
     const normalizeAssetRecord = (item) => ({
         ...item,
@@ -74,9 +87,14 @@
         cashflowEntries,
         cashflowAppliedOccurrenceKeys,
         cashflowAppliedPostings,
-        cashflowLastAutoApplyDate
+        cashflowLastAutoApplyDate,
+        currencyRates,
+        currencyRatesUpdatedAt,
+        pageLanguage,
+        themeId,
+        recentCurrencies
     }) => ({
-        version: 1,
+        version: 2,
         exportedAt: new Date().toISOString(),
         data: {
             assets,
@@ -85,7 +103,12 @@
             cashflowEntries,
             cashflowAppliedOccurrenceKeys,
             cashflowAppliedPostings,
-            cashflowLastAutoApplyDate
+            cashflowLastAutoApplyDate,
+            currencyRates: sanitizeCurrencyRates(currencyRates),
+            currencyRatesUpdatedAt: Number.isFinite(Number(currencyRatesUpdatedAt)) ? Number(currencyRatesUpdatedAt) : 0,
+            pageLanguage: typeof pageLanguage === 'string' ? pageLanguage : 'zh-Hant',
+            themeId: typeof themeId === 'string' ? themeId : 'macaron-prince',
+            recentCurrencies: sanitizeRecentCurrencies(recentCurrencies)
         }
     });
 
@@ -121,6 +144,12 @@
             imported?.cashflowLastAutoApplyDate,
             fallbackDate
         );
+        const hasCurrencyRates = imported?.currencyRates && typeof imported.currencyRates === 'object' && !Array.isArray(imported.currencyRates);
+        const nextCurrencyRates = hasCurrencyRates ? sanitizeCurrencyRates(imported.currencyRates) : null;
+        const nextCurrencyRatesUpdatedAt = Number(imported?.currencyRatesUpdatedAt);
+        const nextPageLanguage = typeof imported?.pageLanguage === 'string' ? imported.pageLanguage : null;
+        const nextThemeId = typeof imported?.themeId === 'string' ? imported.themeId : null;
+        const nextRecentCurrencies = sanitizeRecentCurrencies(imported?.recentCurrencies);
 
         const safeSnapshots = nextMonthlySnapshots && !Array.isArray(nextMonthlySnapshots) ? nextMonthlySnapshots : {};
 
@@ -131,7 +160,12 @@
             nextCashflowEntries,
             nextCashflowAppliedOccurrenceKeys,
             nextCashflowAppliedPostings,
-            nextCashflowLastAutoApplyDate
+            nextCashflowLastAutoApplyDate,
+            nextCurrencyRates,
+            nextCurrencyRatesUpdatedAt: Number.isFinite(nextCurrencyRatesUpdatedAt) && nextCurrencyRatesUpdatedAt > 0 ? nextCurrencyRatesUpdatedAt : null,
+            nextPageLanguage,
+            nextThemeId,
+            nextRecentCurrencies
         };
     };
 
