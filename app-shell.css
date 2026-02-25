@@ -259,6 +259,15 @@ body {
     border: 1px solid var(--primary, #FFB6C1);
 }
 
+.hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
 .theme-tab-inactive {
     background-color: var(--panel-bg, #FFFFFF);
     color: var(--text-sub, #8C7A6E);

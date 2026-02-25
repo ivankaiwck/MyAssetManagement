@@ -75,7 +75,8 @@
     const INVEST_CHART_COLORS = ['#F472B6', '#38BDF8', '#F59E0B', '#A78BFA', '#818CF8', '#F43F5E', '#22D3EE', '#FB7185'];
     const CASHFLOW_TYPES = {
         INCOME: { label: '收入', tone: 'text-emerald-600' },
-        EXPENSE: { label: '支出', tone: 'text-rose-600' }
+        EXPENSE: { label: '支出', tone: 'text-rose-600' },
+        TRANSFER: { label: '轉帳', tone: 'text-indigo-600' }
     };
     const CASHFLOW_SCHEDULE_TYPES = [
         { value: 'ONE_TIME', label: '單次性' },
@@ -89,13 +90,14 @@
     ];
     const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
     const CASHFLOW_CATEGORY_OPTIONS = [
-        '收入-薪金', '收入-獎金', '收入-佣金', '收入-租金', '收入-股息', '收入-利息', '收入-兼職', '收入-生意', '收入-退款/補貼', '收入-其他',
-        '費用-餐飲', '費用-交通', '費用-電費', '費用-水費', '費用-煤氣費', '費用-網絡/電話', '費用-房租/管理費', '費用-保險', '費用-醫療', '費用-教育', '費用-娛樂', '費用-購物', '費用-家庭', '費用-稅費', '費用-其他',
-        '轉帳-儲蓄'
+        '收入-薪資', '收入-獎金', '收入-佣金', '收入-租金', '收入-股息', '收入-利息', '收入-兼職', '收入-生意', '收入-副業', '收入-理財', '收入-其他',
+        '費用-日用品', '費用-餐飲', '費用-交通', '費用-娛樂', '費用-服飾', '費用-教育', '費用-美容', '費用-零食', '費用-親子', '費用-數位', '費用-社交', '費用-旅遊', '費用-寵物', '費用-居住', '費用-汽車', '費用-生活繳費', '費用-菸酒', '費用-醫療', '費用-美妝', '費用-遊戲', '費用-健身', '費用-鞋包', '費用-居家用品', '費用-訂閱', '費用-玩具', '費用-稅金', '費用-其他',
+        '轉帳-帳戶互轉'
     ];
     const CASHFLOW_CATEGORY_BY_TYPE = {
         INCOME: CASHFLOW_CATEGORY_OPTIONS.filter(item => item.startsWith('收入-')),
-        EXPENSE: CASHFLOW_CATEGORY_OPTIONS.filter(item => item.startsWith('費用-')).concat(['轉帳-儲蓄'])
+        EXPENSE: CASHFLOW_CATEGORY_OPTIONS.filter(item => item.startsWith('費用-')),
+        TRANSFER: CASHFLOW_CATEGORY_OPTIONS.filter(item => item.startsWith('轉帳-'))
     };
     const getDefaultCashflowCategory = (type) => {
         const options = CASHFLOW_CATEGORY_BY_TYPE[type] || CASHFLOW_CATEGORY_BY_TYPE.EXPENSE;

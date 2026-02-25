@@ -729,7 +729,8 @@
                         targetLiquidAssetId: typeof value.targetLiquidAssetId === 'string' ? value.targetLiquidAssetId : '',
                         signedAmount,
                         targetCurrency: typeof value.targetCurrency === 'string' ? value.targetCurrency : '',
-                        type: value.type === 'INCOME' ? 'INCOME' : 'EXPENSE'
+                        type: (value.type === 'INCOME' || value.type === 'TRANSFER') ? value.type : 'EXPENSE',
+                        transferRole: value.transferRole === 'OUT' ? 'OUT' : (value.transferRole === 'IN' ? 'IN' : '')
                     };
                 });
                 return next;
@@ -807,6 +808,7 @@
                     oneTimeDates: [],
                     endDate: '',
                     payday: '25',
+                    sourceLiquidAssetId: '',
                     targetLiquidAssetId: '',
                     note: ''
                 };
@@ -906,7 +908,19 @@
                 setCashflowForm(prev => ({
                     ...prev,
                     type: nextType,
-                    category: getDefaultCashflowCategory(nextType)
+                    category: getDefaultCashflowCategory(nextType),
+                    sourceLiquidAssetId: nextType === 'TRANSFER' ? prev.sourceLiquidAssetId : '',
+                    targetLiquidAssetId: nextType === 'TRANSFER' ? prev.targetLiquidAssetId : prev.targetLiquidAssetId
+                }));
+            };
+            const updateCashflowSourceLiquidAsset = (event) => {
+                const nextId = event.target.value;
+                const selected = liquidAssetOptions.find(option => option.id === nextId) || null;
+                setCashflowForm(prev => ({
+                    ...prev,
+                    sourceLiquidAssetId: nextId,
+                    account: selected?.account || prev.account,
+                    currency: selected?.currency || prev.currency
                 }));
             };
             const updateCashflowTargetLiquidAsset = (event) => {
@@ -915,7 +929,7 @@
                 setCashflowForm(prev => ({
                     ...prev,
                     targetLiquidAssetId: nextId,
-                    account: selected?.account || prev.account
+                    account: prev.type === 'TRANSFER' ? prev.account : (selected?.account || prev.account)
                 }));
             };
 
@@ -1852,6 +1866,7 @@
                     if (cashflowRuleFilter === 'ONE_TIME') return item.scheduleType === 'ONE_TIME';
                     if (cashflowRuleFilter === 'INCOME') return item.type === 'INCOME';
                     if (cashflowRuleFilter === 'EXPENSE') return item.type === 'EXPENSE';
+                    if (cashflowRuleFilter === 'TRANSFER') return item.type === 'TRANSFER';
                     return true;
                 });
 
@@ -1929,6 +1944,15 @@
                     targetLiquidAssetId: ''
                 }));
             }, [cashflowForm.targetLiquidAssetId, liquidAssetOptions]);
+
+            useEffect(() => {
+                if (!cashflowForm.sourceLiquidAssetId) return;
+                if (liquidAssetOptions.some(option => option.id === cashflowForm.sourceLiquidAssetId)) return;
+                setCashflowForm(prev => ({
+                    ...prev,
+                    sourceLiquidAssetId: ''
+                }));
+            }, [cashflowForm.sourceLiquidAssetId, liquidAssetOptions]);
 
             const parseInsuranceInvestmentFundRows = (rawValue) => {
                 const lines = String(rawValue || '')
@@ -2787,7 +2811,12 @@
                 }
 
                 const applyImmediatePostingsNow = (entry, baseAssets, baseAppliedPostings, baseAppliedOccurrenceKeys) => {
-                    if (!entry || !entry.targetLiquidAssetId) return;
+                    if (!entry) return;
+                    if (entry.type === 'TRANSFER') {
+                        if (!entry.sourceLiquidAssetId || !entry.targetLiquidAssetId || entry.sourceLiquidAssetId === entry.targetLiquidAssetId) return;
+                    } else if (!entry.targetLiquidAssetId) {
+                        return;
+                    }
 
                     const today = new Date();
                     const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -2837,6 +2866,53 @@
 
                     let appliedCount = 0;
                     occurrenceDateKeys.forEach(dateKey => {
+                        if (entry.type === 'TRANSFER') {
+                            const sourceKey = `${entry.id}@${dateKey}@OUT@${entry.sourceLiquidAssetId}`;
+                            const targetKey = `${entry.id}@${dateKey}@IN@${entry.targetLiquidAssetId}`;
+                            if (appliedKeySet.has(sourceKey) || appliedKeySet.has(targetKey)) return;
+
+                            const sourceIndex = liquidAssetIndexMap[entry.sourceLiquidAssetId];
+                            const targetIndex = liquidAssetIndexMap[entry.targetLiquidAssetId];
+                            if (!Number.isInteger(sourceIndex) || !Number.isInteger(targetIndex)) return;
+                            const sourceAsset = nextAssets[sourceIndex];
+                            const targetAsset = nextAssets[targetIndex];
+                            if (!sourceAsset || sourceAsset.category !== 'LIQUID' || !targetAsset || targetAsset.category !== 'LIQUID') return;
+
+                            const amountHKD = toHKD(Number(entry.amount || 0), entry.currency || sourceAsset.currency || 'HKD');
+                            const sourceAmount = fromHKD(amountHKD, sourceAsset.currency || 'HKD');
+                            const targetAmount = fromHKD(amountHKD, targetAsset.currency || 'HKD');
+
+                            nextAssets[sourceIndex] = {
+                                ...sourceAsset,
+                                quantity: Number((Number(sourceAsset.quantity || 0) - sourceAmount).toFixed(6))
+                            };
+                            nextAssets[targetIndex] = {
+                                ...targetAsset,
+                                quantity: Number((Number(targetAsset.quantity || 0) + targetAmount).toFixed(6))
+                            };
+
+                            nextAppliedPostings[sourceKey] = {
+                                entryId: entry.id,
+                                targetLiquidAssetId: entry.sourceLiquidAssetId,
+                                signedAmount: Number((-sourceAmount).toFixed(6)),
+                                targetCurrency: sourceAsset.currency,
+                                type: entry.type,
+                                transferRole: 'OUT'
+                            };
+                            nextAppliedPostings[targetKey] = {
+                                entryId: entry.id,
+                                targetLiquidAssetId: entry.targetLiquidAssetId,
+                                signedAmount: Number(targetAmount.toFixed(6)),
+                                targetCurrency: targetAsset.currency,
+                                type: entry.type,
+                                transferRole: 'IN'
+                            };
+                            appliedKeySet.add(sourceKey);
+                            appliedKeySet.add(targetKey);
+                            appliedCount += 1;
+                            return;
+                        }
+
                         const occurrenceKey = `${entry.id}@${dateKey}@${entry.targetLiquidAssetId}`;
                         if (appliedKeySet.has(occurrenceKey)) return;
 
@@ -2877,75 +2953,38 @@
                 let immediateAppliedOccurrenceKeysBase = cashflowAppliedOccurrenceKeys;
 
                 if (submission.isEditing) {
-                    const prevEntry = cashflowEntries.find(item => item.id === editingCashflowId);
-                    const nextTargetId = submission.nextEntry.targetLiquidAssetId || '';
-                    const prevTargetId = prevEntry?.targetLiquidAssetId || '';
+                    const liquidAssetIndexMap = {};
+                    const rollbackAssets = [...assets];
+                    rollbackAssets.forEach((asset, index) => {
+                        if (asset.category === 'LIQUID') liquidAssetIndexMap[asset.id] = index;
+                    });
 
-                    if (prevEntry && prevTargetId !== nextTargetId) {
-                        const liquidAssetIndexMap = {};
-                        const nextAssets = [...assets];
-                        nextAssets.forEach((asset, index) => {
-                            if (asset.category === 'LIQUID') liquidAssetIndexMap[asset.id] = index;
-                        });
+                    const rollbackPostings = { ...cashflowAppliedPostings };
+                    const rollbackKeySet = new Set(cashflowAppliedOccurrenceKeys);
 
-                        const nextAppliedPostings = { ...cashflowAppliedPostings };
-                        const nextAppliedKeySet = new Set(cashflowAppliedOccurrenceKeys);
-
-                        Object.keys(cashflowAppliedPostings).forEach(postingKey => {
-                            const posting = cashflowAppliedPostings[postingKey];
-                            if (!posting || posting.entryId !== editingCashflowId) return;
-
-                            const oldTargetId = posting.targetLiquidAssetId || prevTargetId;
-                            const oldIndex = liquidAssetIndexMap[oldTargetId];
-                            if (Number.isInteger(oldIndex)) {
-                                const oldAsset = nextAssets[oldIndex];
-                                if (oldAsset && oldAsset.category === 'LIQUID') {
-                                    const nextQuantity = Number(oldAsset.quantity || 0) - Number(posting.signedAmount || 0);
-                                    nextAssets[oldIndex] = {
-                                        ...oldAsset,
-                                        quantity: Number(nextQuantity.toFixed(6))
-                                    };
-                                }
+                    Object.keys(cashflowAppliedPostings).forEach(postingKey => {
+                        const posting = cashflowAppliedPostings[postingKey];
+                        if (!posting || posting.entryId !== editingCashflowId) return;
+                        const targetIndex = liquidAssetIndexMap[posting.targetLiquidAssetId || ''];
+                        if (Number.isInteger(targetIndex)) {
+                            const targetAsset = rollbackAssets[targetIndex];
+                            if (targetAsset && targetAsset.category === 'LIQUID') {
+                                rollbackAssets[targetIndex] = {
+                                    ...targetAsset,
+                                    quantity: Number((Number(targetAsset.quantity || 0) - Number(posting.signedAmount || 0)).toFixed(6))
+                                };
                             }
+                        }
+                        delete rollbackPostings[postingKey];
+                        rollbackKeySet.delete(postingKey);
+                    });
 
-                            delete nextAppliedPostings[postingKey];
-                            nextAppliedKeySet.delete(postingKey);
-
-                            if (!nextTargetId) return;
-                            const nextIndex = liquidAssetIndexMap[nextTargetId];
-                            if (!Number.isInteger(nextIndex)) return;
-
-                            const nextAsset = nextAssets[nextIndex];
-                            if (!nextAsset || nextAsset.category !== 'LIQUID') return;
-
-                            const amountHKD = toHKD(Number(posting.signedAmount || 0), posting.targetCurrency || nextAsset.currency);
-                            const signedAmount = fromHKD(amountHKD, nextAsset.currency);
-                            const nextQuantity = Number(nextAsset.quantity || 0) + signedAmount;
-                            nextAssets[nextIndex] = {
-                                ...nextAsset,
-                                quantity: Number(nextQuantity.toFixed(6))
-                            };
-
-                            const dateKey = parseOccurrenceDateFromPostingKey(postingKey);
-                            const nextKey = dateKey
-                                ? `${editingCashflowId}@${dateKey}@${nextTargetId}`
-                                : `${editingCashflowId}@${nextTargetId}`;
-                            nextAppliedPostings[nextKey] = {
-                                ...posting,
-                                targetLiquidAssetId: nextTargetId,
-                                signedAmount: Number(signedAmount.toFixed(6)),
-                                targetCurrency: nextAsset.currency
-                            };
-                            nextAppliedKeySet.add(nextKey);
-                        });
-
-                        setAssets(nextAssets);
-                        setCashflowAppliedPostings(nextAppliedPostings);
-                        setCashflowAppliedOccurrenceKeys(Array.from(nextAppliedKeySet));
-                        immediateAssetsBase = nextAssets;
-                        immediateAppliedPostingsBase = nextAppliedPostings;
-                        immediateAppliedOccurrenceKeysBase = Array.from(nextAppliedKeySet);
-                    }
+                    setAssets(rollbackAssets);
+                    setCashflowAppliedPostings(rollbackPostings);
+                    setCashflowAppliedOccurrenceKeys(Array.from(rollbackKeySet));
+                    immediateAssetsBase = rollbackAssets;
+                    immediateAppliedPostingsBase = rollbackPostings;
+                    immediateAppliedOccurrenceKeysBase = Array.from(rollbackKeySet);
 
                     setCashflowEntries(prev => sanitizeCashflowEntries(prev.map(item => item.id === editingCashflowId ? submission.nextEntry : item)));
                     applyImmediatePostingsNow(submission.nextEntry, immediateAssetsBase, immediateAppliedPostingsBase, immediateAppliedOccurrenceKeysBase);
@@ -2959,6 +2998,7 @@
                     amount: '',
                     note: '',
                     oneTimeDates: [],
+                    sourceLiquidAssetId: prev.type === 'TRANSFER' ? prev.sourceLiquidAssetId : '',
                     targetLiquidAssetId: prev.targetLiquidAssetId || ''
                 }));
                 setEditingCashflowId('');
@@ -3614,7 +3654,19 @@
                     entry.linkedSource === 'INVEST_FUND_DISTRIBUTION_AUTO'
                     && entry.linkedAssetId === id
                 )).length;
-                const linkedAutoRuleCount = linkedInsuranceRuleCount + linkedFixedDepositRuleCount + linkedBankWealthRuleCount + linkedFundDistributionRuleCount;
+                const linkedLiabilityRuleCount = cashflowEntries.filter(entry => (
+                    String(entry.linkedSource || '').startsWith('LIABILITY_')
+                    && entry.linkedAssetId === id
+                )).length;
+                const linkedReceivableRuleCount = cashflowEntries.filter(entry => (
+                    entry.linkedSource === 'RECEIVABLE_COLLECTION_AUTO'
+                    && entry.linkedAssetId === id
+                )).length;
+                const linkedFixedAssetRuleCount = cashflowEntries.filter(entry => (
+                    entry.linkedSource === 'FIXED_ASSET_PURCHASE_AUTO'
+                    && entry.linkedAssetId === id
+                )).length;
+                const linkedAutoRuleCount = linkedInsuranceRuleCount + linkedFixedDepositRuleCount + linkedBankWealthRuleCount + linkedFundDistributionRuleCount + linkedLiabilityRuleCount + linkedReceivableRuleCount + linkedFixedAssetRuleCount;
                 const confirmMessage = linkedAutoRuleCount > 0
                     ? tByLang(
                         `確定要刪除此資產嗎？\n將一併刪除 ${linkedAutoRuleCount} 條自動現金流規則。`,
@@ -3634,6 +3686,9 @@
                         || entry.linkedSource === 'INVEST_FUND_DISTRIBUTION_AUTO'
                         || entry.linkedSource === 'FIXED_DEPOSIT_MATURITY_AUTO'
                         || entry.linkedSource === 'BANK_WEALTH_MATURITY_AUTO'
+                        || String(entry.linkedSource || '').startsWith('LIABILITY_')
+                        || entry.linkedSource === 'RECEIVABLE_COLLECTION_AUTO'
+                        || entry.linkedSource === 'FIXED_ASSET_PURCHASE_AUTO'
                     )
                     && entry.linkedAssetId === id
                 )));
@@ -3926,6 +3981,288 @@
                         targetLiquidAssetId: sourceAsset.bankWealthTargetLiquidAssetId,
                         linkedAssetId: assetId,
                         linkedSource: 'BANK_WEALTH_MATURITY_AUTO'
+                    };
+                };
+
+                const resolveDefaultTargetLiquidAsset = (sourceAsset) => {
+                    const sourceAccount = String(sourceAsset?.account || '').trim();
+                    const sourceCurrency = String(sourceAsset?.currency || 'HKD').trim();
+                    if (!sourceAccount) return null;
+                    const accountMatched = liquidAssetOptions.filter(option => String(option.account || '').trim() === sourceAccount);
+                    if (accountMatched.length === 1) return accountMatched[0];
+                    if (accountMatched.length > 1) {
+                        const currencyMatched = accountMatched.filter(option => option.currency === sourceCurrency);
+                        if (currencyMatched.length >= 1) return currencyMatched[0];
+                        return accountMatched[0];
+                    }
+                    return null;
+                };
+
+                const buildLiabilityCashflowEntry = (assetId, sourceAsset, existingCashflowId = '') => {
+                    if (!sourceAsset || sourceAsset.category !== 'LIABILITY') return null;
+                    const subtype = String(sourceAsset.subtype || '');
+                    const targetLiquidAsset = resolveDefaultTargetLiquidAsset(sourceAsset);
+                    if (!targetLiquidAsset?.id) return null;
+
+                    const today = new Date();
+                    const todayKey = toDateKey(today);
+                    const sourceName = (sourceAsset.name || '').trim();
+
+                    if (subtype === '房貸') {
+                        const amount = Number(sourceAsset.monthlyPayment || 0);
+                        if (!Number.isFinite(amount) || amount <= 0) return null;
+                        return {
+                            id: existingCashflowId || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                            title: sourceName ? `${sourceName} 月供` : '房貸月供',
+                            account: targetLiquidAsset.account || sourceAsset.account || '',
+                            category: getDefaultCashflowCategory('EXPENSE'),
+                            note: tByLang('房貸還款（自動）', 'Mortgage Repayment (Auto)', '住宅ローン返済（自動）'),
+                            type: 'EXPENSE',
+                            amount,
+                            currency: sourceAsset.currency || targetLiquidAsset.currency || 'HKD',
+                            startDate: todayKey,
+                            oneTimeDates: [],
+                            endDate: '',
+                            scheduleType: 'RECURRING',
+                            frequency: 'MONTHLY',
+                            weekday: 0,
+                            monthday: 1,
+                            payday: '1',
+                            targetLiquidAssetId: targetLiquidAsset.id,
+                            linkedAssetId: assetId,
+                            linkedSource: 'LIABILITY_MORTGAGE_AUTO'
+                        };
+                    }
+
+                    if (subtype === '貸款') {
+                        const amount = Number(sourceAsset.loanMonthlyPayment || sourceAsset.monthlyPayment || 0);
+                        if (!Number.isFinite(amount) || amount <= 0) return null;
+                        return {
+                            id: existingCashflowId || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                            title: sourceName ? `${sourceName} 月供` : '貸款月供',
+                            account: targetLiquidAsset.account || sourceAsset.account || '',
+                            category: getDefaultCashflowCategory('EXPENSE'),
+                            note: tByLang('貸款還款（自動）', 'Loan Repayment (Auto)', 'ローン返済（自動）'),
+                            type: 'EXPENSE',
+                            amount,
+                            currency: sourceAsset.currency || targetLiquidAsset.currency || 'HKD',
+                            startDate: todayKey,
+                            oneTimeDates: [],
+                            endDate: '',
+                            scheduleType: 'RECURRING',
+                            frequency: 'MONTHLY',
+                            weekday: 0,
+                            monthday: 1,
+                            payday: '1',
+                            targetLiquidAssetId: targetLiquidAsset.id,
+                            linkedAssetId: assetId,
+                            linkedSource: 'LIABILITY_LOAN_AUTO'
+                        };
+                    }
+
+                    if (subtype === '信用卡') {
+                        const amount = Number(sourceAsset.creditCardMinPayment || sourceAsset.creditCardBalance || 0);
+                        if (!Number.isFinite(amount) || amount <= 0) return null;
+                        const dueDate = parseDateKey(sourceAsset.creditCardDueDate || '') || today;
+                        const dueDay = dueDate.getDate();
+                        const startDate = toDateKey(new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDay));
+                        return {
+                            id: existingCashflowId || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                            title: sourceName ? `${sourceName} 最低還款` : '信用卡還款',
+                            account: targetLiquidAsset.account || sourceAsset.account || '',
+                            category: getDefaultCashflowCategory('EXPENSE'),
+                            note: tByLang('信用卡還款（自動）', 'Credit Card Repayment (Auto)', 'クレジットカード返済（自動）'),
+                            type: 'EXPENSE',
+                            amount,
+                            currency: sourceAsset.currency || targetLiquidAsset.currency || 'HKD',
+                            startDate,
+                            oneTimeDates: [],
+                            endDate: '',
+                            scheduleType: 'RECURRING',
+                            frequency: 'MONTHLY',
+                            weekday: 0,
+                            monthday: dueDay,
+                            payday: String(dueDay),
+                            targetLiquidAssetId: targetLiquidAsset.id,
+                            linkedAssetId: assetId,
+                            linkedSource: 'LIABILITY_CREDIT_CARD_AUTO'
+                        };
+                    }
+
+                    if (subtype === '應付款') {
+                        const amount = Number(sourceAsset.payableAmount || 0);
+                        if (!Number.isFinite(amount) || amount <= 0) return null;
+                        const dueDate = parseDateKey(sourceAsset.payableDueDate || '');
+                        if (!dueDate) return null;
+                        const dueDateKey = toDateKey(dueDate);
+                        const dueDay = dueDate.getDate();
+                        return {
+                            id: existingCashflowId || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                            title: sourceName ? `${sourceName} 應付款` : '應付款到期',
+                            account: targetLiquidAsset.account || sourceAsset.account || '',
+                            category: getDefaultCashflowCategory('EXPENSE'),
+                            note: tByLang('應付款到期（自動）', 'Payable Due (Auto)', '買掛金期日（自動）'),
+                            type: 'EXPENSE',
+                            amount,
+                            currency: sourceAsset.currency || targetLiquidAsset.currency || 'HKD',
+                            startDate: dueDateKey,
+                            oneTimeDates: [dueDateKey],
+                            endDate: '',
+                            scheduleType: 'ONE_TIME',
+                            frequency: 'ONE_TIME',
+                            weekday: 0,
+                            monthday: dueDay,
+                            payday: String(dueDay),
+                            targetLiquidAssetId: targetLiquidAsset.id,
+                            linkedAssetId: assetId,
+                            linkedSource: 'LIABILITY_PAYABLE_AUTO'
+                        };
+                    }
+
+                    if (subtype === '其他負債') {
+                        const amount = Number(sourceAsset.otherOutstanding || 0);
+                        if (!Number.isFinite(amount) || amount <= 0) return null;
+                        const dueDate = parseDateKey(sourceAsset.otherDueDate || '');
+                        if (!dueDate) return null;
+                        const dueDateKey = toDateKey(dueDate);
+                        const dueDay = dueDate.getDate();
+                        return {
+                            id: existingCashflowId || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                            title: sourceName ? `${sourceName} 還款` : '其他負債到期',
+                            account: targetLiquidAsset.account || sourceAsset.account || '',
+                            category: getDefaultCashflowCategory('EXPENSE'),
+                            note: tByLang('其他負債到期（自動）', 'Other Liability Due (Auto)', 'その他負債期日（自動）'),
+                            type: 'EXPENSE',
+                            amount,
+                            currency: sourceAsset.currency || targetLiquidAsset.currency || 'HKD',
+                            startDate: dueDateKey,
+                            oneTimeDates: [dueDateKey],
+                            endDate: '',
+                            scheduleType: 'ONE_TIME',
+                            frequency: 'ONE_TIME',
+                            weekday: 0,
+                            monthday: dueDay,
+                            payday: String(dueDay),
+                            targetLiquidAssetId: targetLiquidAsset.id,
+                            linkedAssetId: assetId,
+                            linkedSource: 'LIABILITY_OTHER_AUTO'
+                        };
+                    }
+
+                    return null;
+                };
+
+                const calculateInstallmentEndDateKey = (startDate, installments) => {
+                    const count = Math.max(1, Math.floor(Number(installments || 0) || 1));
+                    if (count <= 1) return toDateKey(startDate);
+                    const target = new Date(startDate.getFullYear(), startDate.getMonth() + (count - 1), startDate.getDate());
+                    return toDateKey(target);
+                };
+
+                const buildReceivableCashflowEntry = (assetId, sourceAsset, existingCashflowId = '') => {
+                    if (!sourceAsset || sourceAsset.category !== 'RECEIVABLE') return null;
+                    const targetLiquidAsset = resolveDefaultTargetLiquidAsset(sourceAsset);
+                    if (!targetLiquidAsset?.id) return null;
+
+                    const amountTotal = Number(sourceAsset.receivableAmount || 0);
+                    if (!Number.isFinite(amountTotal) || amountTotal <= 0) return null;
+                    const dueDate = parseDateKey(sourceAsset.receivableDueDate || '');
+                    if (!dueDate) return null;
+
+                    const installments = Math.max(1, Math.floor(Number(sourceAsset.receivableInstallments || 0) || 1));
+                    const amountPerCycle = Number((amountTotal / installments).toFixed(6));
+                    const startDateKey = toDateKey(dueDate);
+                    const dueDay = dueDate.getDate();
+                    const sourceName = (sourceAsset.name || '').trim();
+                    const title = sourceName ? `${sourceName} 回款` : '應收款回款';
+
+                    if (installments <= 1) {
+                        return {
+                            id: existingCashflowId || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                            title,
+                            account: targetLiquidAsset.account || sourceAsset.account || '',
+                            category: getDefaultCashflowCategory('INCOME'),
+                            note: [
+                                tByLang('應收款到期回款（自動）', 'Receivable Collection (Auto)', '売掛金回収（自動）'),
+                                (sourceAsset.receivableParty || '').trim()
+                            ].filter(Boolean).join('｜'),
+                            type: 'INCOME',
+                            amount: amountPerCycle,
+                            currency: sourceAsset.currency || targetLiquidAsset.currency || 'HKD',
+                            startDate: startDateKey,
+                            oneTimeDates: [startDateKey],
+                            endDate: '',
+                            scheduleType: 'ONE_TIME',
+                            frequency: 'ONE_TIME',
+                            weekday: 0,
+                            monthday: dueDay,
+                            payday: String(dueDay),
+                            targetLiquidAssetId: targetLiquidAsset.id,
+                            linkedAssetId: assetId,
+                            linkedSource: 'RECEIVABLE_COLLECTION_AUTO'
+                        };
+                    }
+
+                    return {
+                        id: existingCashflowId || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                        title,
+                        account: targetLiquidAsset.account || sourceAsset.account || '',
+                        category: getDefaultCashflowCategory('INCOME'),
+                        note: [
+                            tByLang('應收款分期回款（自動）', 'Receivable Installment Collection (Auto)', '売掛金分割回収（自動）'),
+                            (sourceAsset.receivableParty || '').trim(),
+                            `${installments}${tByLang('期', ' terms', '回')}`
+                        ].filter(Boolean).join('｜'),
+                        type: 'INCOME',
+                        amount: amountPerCycle,
+                        currency: sourceAsset.currency || targetLiquidAsset.currency || 'HKD',
+                        startDate: startDateKey,
+                        oneTimeDates: [],
+                        endDate: calculateInstallmentEndDateKey(dueDate, installments),
+                        scheduleType: 'RECURRING',
+                        frequency: 'MONTHLY',
+                        weekday: 0,
+                        monthday: dueDay,
+                        payday: String(dueDay),
+                        targetLiquidAssetId: targetLiquidAsset.id,
+                        linkedAssetId: assetId,
+                        linkedSource: 'RECEIVABLE_COLLECTION_AUTO'
+                    };
+                };
+
+                const buildFixedAssetCashflowEntry = (assetId, sourceAsset, existingCashflowId = '') => {
+                    if (!sourceAsset || sourceAsset.category !== 'FIXED') return null;
+                    const targetLiquidAsset = resolveDefaultTargetLiquidAsset(sourceAsset);
+                    if (!targetLiquidAsset?.id) return null;
+
+                    const purchaseAmount = Number(sourceAsset.fixedPurchasePrice || 0);
+                    if (!Number.isFinite(purchaseAmount) || purchaseAmount <= 0) return null;
+                    const purchaseDate = parseDateKey(sourceAsset.fixedPurchaseDate || '');
+                    if (!purchaseDate) return null;
+                    const purchaseDateKey = toDateKey(purchaseDate);
+                    const purchaseDay = purchaseDate.getDate();
+                    const sourceName = (sourceAsset.name || '').trim();
+
+                    return {
+                        id: existingCashflowId || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                        title: sourceName ? `${sourceName} 購入` : '固定資產購入',
+                        account: targetLiquidAsset.account || sourceAsset.account || '',
+                        category: getDefaultCashflowCategory('EXPENSE'),
+                        note: tByLang('固定資產購入（自動）', 'Fixed Asset Purchase (Auto)', '固定資産購入（自動）'),
+                        type: 'EXPENSE',
+                        amount: purchaseAmount,
+                        currency: sourceAsset.currency || targetLiquidAsset.currency || 'HKD',
+                        startDate: purchaseDateKey,
+                        oneTimeDates: [purchaseDateKey],
+                        endDate: '',
+                        scheduleType: 'ONE_TIME',
+                        frequency: 'ONE_TIME',
+                        weekday: 0,
+                        monthday: purchaseDay,
+                        payday: String(purchaseDay),
+                        targetLiquidAssetId: targetLiquidAsset.id,
+                        linkedAssetId: assetId,
+                        linkedSource: 'FIXED_ASSET_PURCHASE_AUTO'
                     };
                 };
 
@@ -4262,6 +4599,18 @@
                         return Number(data.bankWealthGuaranteedMaturityAmount || data.currentPrice || 0) > 0;
                     })()
                 );
+                const liabilityAutoEntryDraft = data.category === 'LIABILITY'
+                    ? buildLiabilityCashflowEntry(newAssetId, data)
+                    : null;
+                const shouldEnableLiabilityRule = Boolean(liabilityAutoEntryDraft);
+                const receivableAutoEntryDraft = data.category === 'RECEIVABLE'
+                    ? buildReceivableCashflowEntry(newAssetId, data)
+                    : null;
+                const shouldEnableReceivableRule = Boolean(receivableAutoEntryDraft);
+                const fixedAssetAutoEntryDraft = data.category === 'FIXED'
+                    ? buildFixedAssetCashflowEntry(newAssetId, data)
+                    : null;
+                const shouldEnableFixedAssetRule = Boolean(fixedAssetAutoEntryDraft);
 
                 if (hasPartialWithdrawal) {
                     const currentPolicyValue = Number(data.insurancePolicyValue || 0);
@@ -4347,6 +4696,51 @@
                             nextEntries = removeBySource(nextEntries, 'BANK_WEALTH_MATURITY_AUTO');
                         }
 
+                        const existingLiabilityEntry = nextEntries.find(entry => (
+                            entry.linkedAssetId === editingId
+                            && String(entry.linkedSource || '').startsWith('LIABILITY_')
+                        ));
+                        nextEntries = nextEntries.filter(entry => !(
+                            entry.linkedAssetId === editingId
+                            && String(entry.linkedSource || '').startsWith('LIABILITY_')
+                        ));
+                        if (data.category === 'LIABILITY') {
+                            const nextLiabilityEntry = buildLiabilityCashflowEntry(editingId, data, existingLiabilityEntry?.id || '');
+                            if (nextLiabilityEntry) {
+                                nextEntries = [...nextEntries, nextLiabilityEntry];
+                            }
+                        }
+
+                        const existingReceivableEntry = nextEntries.find(entry => (
+                            entry.linkedAssetId === editingId
+                            && entry.linkedSource === 'RECEIVABLE_COLLECTION_AUTO'
+                        ));
+                        nextEntries = nextEntries.filter(entry => !(
+                            entry.linkedAssetId === editingId
+                            && entry.linkedSource === 'RECEIVABLE_COLLECTION_AUTO'
+                        ));
+                        if (data.category === 'RECEIVABLE') {
+                            const nextReceivableEntry = buildReceivableCashflowEntry(editingId, data, existingReceivableEntry?.id || '');
+                            if (nextReceivableEntry) {
+                                nextEntries = [...nextEntries, nextReceivableEntry];
+                            }
+                        }
+
+                        const existingFixedAssetEntry = nextEntries.find(entry => (
+                            entry.linkedAssetId === editingId
+                            && entry.linkedSource === 'FIXED_ASSET_PURCHASE_AUTO'
+                        ));
+                        nextEntries = nextEntries.filter(entry => !(
+                            entry.linkedAssetId === editingId
+                            && entry.linkedSource === 'FIXED_ASSET_PURCHASE_AUTO'
+                        ));
+                        if (data.category === 'FIXED') {
+                            const nextFixedAssetEntry = buildFixedAssetCashflowEntry(editingId, data, existingFixedAssetEntry?.id || '');
+                            if (nextFixedAssetEntry) {
+                                nextEntries = [...nextEntries, nextFixedAssetEntry];
+                            }
+                        }
+
                         if (hasPartialWithdrawal) {
                             if (partialWithdrawalEditEntry) {
                                 nextEntries = nextEntries.map(entry => (
@@ -4387,6 +4781,15 @@
                         }
                         if (shouldEnableBankWealthMaturityRule) {
                             nextEntries = [...nextEntries, buildBankWealthMaturityCashflowEntry(newAssetId, data)];
+                        }
+                        if (shouldEnableLiabilityRule && liabilityAutoEntryDraft) {
+                            nextEntries = [...nextEntries, liabilityAutoEntryDraft];
+                        }
+                        if (shouldEnableReceivableRule && receivableAutoEntryDraft) {
+                            nextEntries = [...nextEntries, receivableAutoEntryDraft];
+                        }
+                        if (shouldEnableFixedAssetRule && fixedAssetAutoEntryDraft) {
+                            nextEntries = [...nextEntries, fixedAssetAutoEntryDraft];
                         }
                         return sanitizeCashflowEntries(nextEntries);
                     });
@@ -4479,6 +4882,11 @@
                         totalLiabilitiesCardStyle={totalLiabilitiesCardStyle}
                         totals={totals}
                         formatAmount={formatAmountForDisplay}
+                        toHKD={toHKD}
+                        fromHKD={fromHKD}
+                        monthlySnapshots={monthlySnapshots}
+                        cashflowEntries={cashflowEntries}
+                        cashflowYearData={cashflowYearData}
                         netWorthTier={netWorthTier}
                         overviewPanelCardStyle={overviewPanelCardStyle}
                         assetMix={assetMix}
@@ -4549,6 +4957,22 @@
                         startNewCashflowEntry={startNewCashflowEntry}
                         startEditCashflowEntry={startEditCashflowEntry}
                         handleDeleteCashflowEntry={handleDeleteCashflowEntry}
+                        openEdit={openEdit}
+                        AssetDetailListView={AssetDetailListView}
+                        categoryMixHexByKey={categoryMixHexByKey}
+                        groupedAssets={groupedAssets}
+                        cashflowAutoRulesByLiquidAssetId={cashflowAutoRulesByLiquidAssetId}
+                        insuranceAutoPaidCountByAssetId={insuranceAutoPaidCountByAssetId}
+                        insurancePartialWithdrawalStatsByAssetId={insurancePartialWithdrawalStatsByAssetId}
+                        onInsuranceFundRowFieldChange={handleInsuranceFundRowFieldChange}
+                        onInsuranceFundAppendRowWithData={handleInsuranceFundAppendRowWithData}
+                        onInsuranceFundRemoveRow={handleInsuranceFundRemoveRow}
+                        onInsuranceFundMoveRow={handleInsuranceFundMoveRow}
+                        onInsuranceFundDuplicateRow={handleInsuranceFundDuplicateRow}
+                        onInsuranceFundClearRows={handleInsuranceFundClearRows}
+                        fundCurrencyOptions={orderedCurrencies}
+                        chartPalette={detailMixPalette}
+                        fundAccentColor={getThemeTokenByTheme('--primary', '#8B5CF6')}
                     />
 
                     <AssetFilterBarView
@@ -4678,6 +5102,7 @@
                         applyCashflowOneTimeMonthPreset={applyCashflowOneTimeMonthPreset}
                         clearCashflowOneTimeDates={clearCashflowOneTimeDates}
                         updateCashflowType={updateCashflowType}
+                        updateCashflowSourceLiquidAsset={updateCashflowSourceLiquidAsset}
                         updateCashflowTargetLiquidAsset={updateCashflowTargetLiquidAsset}
                         CASHFLOW_TYPES={CASHFLOW_TYPES}
                         CASHFLOW_SCHEDULE_TYPES={CASHFLOW_SCHEDULE_TYPES}

@@ -17,6 +17,7 @@
         applyCashflowOneTimeMonthPreset,
         clearCashflowOneTimeDates,
         updateCashflowType,
+        updateCashflowSourceLiquidAsset,
         updateCashflowTargetLiquidAsset,
         CASHFLOW_TYPES,
         CASHFLOW_SCHEDULE_TYPES,
@@ -70,6 +71,7 @@
                             applyCashflowOneTimeMonthPreset={applyCashflowOneTimeMonthPreset}
                             clearCashflowOneTimeDates={clearCashflowOneTimeDates}
                             updateCashflowType={updateCashflowType}
+                            updateCashflowSourceLiquidAsset={updateCashflowSourceLiquidAsset}
                             updateCashflowTargetLiquidAsset={updateCashflowTargetLiquidAsset}
                             CASHFLOW_TYPES={CASHFLOW_TYPES}
                             CASHFLOW_SCHEDULE_TYPES={CASHFLOW_SCHEDULE_TYPES}

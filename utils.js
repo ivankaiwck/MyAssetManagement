@@ -522,6 +522,7 @@
                     weekday,
                     monthday,
                     payday,
+                    sourceLiquidAssetId: typeof item.sourceLiquidAssetId === 'string' ? item.sourceLiquidAssetId : '',
                     targetLiquidAssetId: typeof item.targetLiquidAssetId === 'string' ? item.targetLiquidAssetId : '',
                     linkedAssetId: typeof item.linkedAssetId === 'string' ? item.linkedAssetId : '',
                     linkedSource: typeof item.linkedSource === 'string' ? item.linkedSource : ''

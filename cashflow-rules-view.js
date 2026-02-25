@@ -51,6 +51,7 @@
                     <option value="ONE_TIME">{tByLang('僅單次', 'One-time Only', '単発のみ')}</option>
                     <option value="INCOME">{tByLang('僅收入', 'Income Only', '収入のみ')}</option>
                     <option value="EXPENSE">{tByLang('僅支出', 'Expense Only', '支出のみ')}</option>
+                    <option value="TRANSFER">{tByLang('僅轉帳', 'Transfer Only', '振替のみ')}</option>
                 </select>
                 <select
                     value={cashflowRuleSortMode}
@@ -91,6 +92,10 @@
                             {(() => {
                                 const isInsuranceAutoDebit = item.linkedSource === 'INSURANCE_AUTO';
                                 const isInsuranceAutoDistribution = item.linkedSource === 'INSURANCE_DISTRIBUTION_AUTO';
+                                const typeToneClass = item.type === 'INCOME' ? 'text-emerald-600' : (item.type === 'TRANSFER' ? 'text-indigo-600' : 'text-rose-600');
+                                const amountPrefix = item.type === 'INCOME' ? '+' : (item.type === 'TRANSFER' ? '↔' : '-');
+                                const sourceCurrency = liquidAssetMetaById?.[item.sourceLiquidAssetId || '']?.currency || '';
+                                const targetCurrency = liquidAssetMetaById?.[item.targetLiquidAssetId || '']?.currency || '';
                                 const insuranceAutoTag = isInsuranceAutoDistribution
                                     ? tByLang('保險派發自動', 'Insurance Distribution Auto', '保険配当・自動')
                                     : (isInsuranceAutoDebit ? tByLang('保險扣款自動', 'Insurance Debit Auto', '保険引落・自動') : '');
@@ -101,7 +106,7 @@
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="min-w-0">
                                         <div className="flex items-center gap-2">
-                                            <span className={`text-xs font-black ${item.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}`}>{CASHFLOW_TYPES[item.type].label}</span>
+                                            <span className={`text-xs font-black ${typeToneClass}`}>{CASHFLOW_TYPES[item.type].label}</span>
                                             <span className="text-sm font-black text-slate-800 truncate">{item.title}</span>
                                             {insuranceAutoTag && (
                                                 <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-100">{insuranceAutoTag}</span>
@@ -112,8 +117,8 @@
                                             {item.frequency === 'MONTHLY' ? tByLang(`（${item.payday || item.monthday || '--'}號）`, `(${item.payday || item.monthday || '--'})`, `（${item.payday || item.monthday || '--'}日）`) : ''}
                                         </div>
                                     </div>
-                                    <div className={`text-sm font-black shrink-0 ${item.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                        {item.type === 'INCOME' ? '+' : '-'}{formatAmount(fromHKD(toHKD(item.amount, item.currency), displayCurrency))}
+                                    <div className={`text-sm font-black shrink-0 ${typeToneClass}`}>
+                                        {amountPrefix}{formatAmount(fromHKD(toHKD(item.amount, item.currency), displayCurrency))}
                                     </div>
                                 </div>
 
@@ -124,13 +129,25 @@
                                         : null}
                                 </div>
 
-                                {item.targetLiquidAssetId && (
+                                {item.type === 'TRANSFER' && item.sourceLiquidAssetId && item.targetLiquidAssetId && (
+                                    <div className="text-[10px] text-indigo-500 font-black truncate">
+                                        {tByLang('轉帳：', 'Transfer: ', '振替：')}
+                                        {(liquidAssetLabelById[item.sourceLiquidAssetId] || tByLang('來源帳戶', 'Source', '振替元'))}
+                                        {sourceCurrency ? `（${sourceCurrency}）` : ''}
+                                        {' → '}
+                                        {(liquidAssetLabelById[item.targetLiquidAssetId] || tByLang('目標帳戶', 'Target', '振替先'))}
+                                        {targetCurrency ? `（${targetCurrency}）` : ''}
+                                    </div>
+                                )}
+
+                                {item.type !== 'TRANSFER' && item.targetLiquidAssetId && (
                                     <div className="text-[10px] text-indigo-500 font-black truncate">
                                         {tByLang('目標：', 'Target: ', '対象：')}{liquidAssetLabelById[item.targetLiquidAssetId] || tByLang('已綁定帳戶', 'Linked Account', '連携済み口座')}
                                     </div>
                                 )}
 
                                 {(() => {
+                                    if (item.type === 'TRANSFER') return null;
                                     if (!item.targetLiquidAssetId) return null;
                                     const targetMeta = liquidAssetMetaById?.[item.targetLiquidAssetId];
                                     if (!targetMeta) return null;
@@ -172,7 +189,7 @@
                             <div className="hidden md:flex items-center justify-between gap-3">
                                 <div className="min-w-0">
                                     <div className="flex items-center gap-2">
-                                        <span className={`text-xs font-black ${item.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}`}>{CASHFLOW_TYPES[item.type].label}</span>
+                                            <span className={`text-xs font-black ${typeToneClass}`}>{CASHFLOW_TYPES[item.type].label}</span>
                                         <span className="text-sm font-black text-slate-800 truncate">{item.title}</span>
                                         {insuranceAutoTag && (
                                             <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-100">{insuranceAutoTag}</span>
@@ -190,7 +207,17 @@
                                             )
                                             : ` · ${item.startDate}${item.endDate ? ` ~ ${item.endDate}` : ''}`}
                                     </div>
-                                    {item.targetLiquidAssetId && (
+                                    {item.type === 'TRANSFER' && item.sourceLiquidAssetId && item.targetLiquidAssetId && (
+                                        <div className="text-[10px] text-indigo-500 font-black mt-0.5">
+                                            {tByLang('轉帳：', 'Transfer: ', '振替：')}
+                                            {(liquidAssetLabelById[item.sourceLiquidAssetId] || tByLang('來源帳戶', 'Source', '振替元'))}
+                                            {sourceCurrency ? `（${sourceCurrency}）` : ''}
+                                            {' → '}
+                                            {(liquidAssetLabelById[item.targetLiquidAssetId] || tByLang('目標帳戶', 'Target', '振替先'))}
+                                            {targetCurrency ? `（${targetCurrency}）` : ''}
+                                        </div>
+                                    )}
+                                    {item.type !== 'TRANSFER' && item.targetLiquidAssetId && (
                                         <div className="text-[10px] text-indigo-500 font-black mt-0.5">
                                             {(item.scheduleType === 'ONE_TIME'
                                                 ? tByLang('本次入帳/扣款目標帳戶：', 'Target account for this posting: ', '今回の入出金先口座：')
@@ -199,6 +226,7 @@
                                         </div>
                                     )}
                                     {(() => {
+                                        if (item.type === 'TRANSFER') return null;
                                         if (!item.targetLiquidAssetId) return null;
                                         const targetMeta = liquidAssetMetaById?.[item.targetLiquidAssetId];
                                         if (!targetMeta) return null;
@@ -221,8 +249,8 @@
                                     {item.note && <div className="text-[10px] text-slate-400 font-bold mt-0.5">{item.note}</div>}
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
-                                    <div className={`text-sm font-black ${item.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                        {item.type === 'INCOME' ? '+' : '-'}{formatAmount(fromHKD(toHKD(item.amount, item.currency), displayCurrency))} {displayCurrency}
+                                    <div className={`text-sm font-black ${typeToneClass}`}>
+                                        {amountPrefix}{formatAmount(fromHKD(toHKD(item.amount, item.currency), displayCurrency))} {displayCurrency}
                                     </div>
                                     <button
                                         type="button"

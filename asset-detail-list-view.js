@@ -515,11 +515,6 @@
                                                         {tByLang('比率', 'Rate', '比率')} {formatAmount(row.distributionRatePercentRaw)}%
                                                     </div>
                                                 )}
-                                                {row.distributionEnabled === 'yes' && (row.distributionMode || 'cash') === 'accumulate' && Number(row.distributionAccumulationBalanceRaw || 0) > 0 && (
-                                                    <div className="text-[10px] text-indigo-600">
-                                                        {tByLang('積存餘額', 'Accumulated Balance', '積立残高')} {formatAmount(row.distributionAccumulationBalanceRaw)} {item.currency || row.currency || 'HKD'}
-                                                    </div>
-                                                )}
                                             </td>
                                             <td className="px-2 py-2 text-right">
                                                 <div className="inline-flex items-center gap-1 text-[10px] font-black">
@@ -588,11 +583,6 @@
                                             {row.distributionEnabled === 'yes' && Number(row.distributionRatePercentRaw || 0) > 0 && (
                                                 <div className="text-[10px] text-indigo-600">
                                                     {tByLang('比率', 'Rate', '比率')} {formatAmount(row.distributionRatePercentRaw)}%
-                                                </div>
-                                            )}
-                                            {row.distributionEnabled === 'yes' && (row.distributionMode || 'cash') === 'accumulate' && Number(row.distributionAccumulationBalanceRaw || 0) > 0 && (
-                                                <div className="text-[10px] text-indigo-600">
-                                                    {tByLang('積存餘額', 'Accumulated Balance', '積立残高')} {formatAmount(row.distributionAccumulationBalanceRaw)} {item.currency || row.currency || 'HKD'}
                                                 </div>
                                             )}
                                         </div>
@@ -1186,11 +1176,6 @@
                                                 {fundDistributionMode === 'cash' && fundDistributionAccountLabel ? ` · ${tByLang('入帳', 'Payout', '入金')} ${fundDistributionAccountLabel}` : ''}
                                                 {fundDistributionMode === 'accumulate' && fundDistributionAccumulationRatePercent > 0 ? ` · ${tByLang('年化', 'APR', '年利')} ${formatAmount(fundDistributionAccumulationRatePercent)}%` : ''}
                                             </div>
-                                            {fundDistributionMode === 'accumulate' && fundDistributionAccumulationBalance > 0 && (
-                                                <div className="text-slate-500">
-                                                    {tByLang('積存餘額', 'Accumulated Balance', '積立残高')} {formatAmount(fundDistributionAccumulationBalance)} {item.currency}
-                                                </div>
-                                            )}
                                         </>
                                     )}
                                     <div className={`${profitOrig >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>

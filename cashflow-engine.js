@@ -29,7 +29,7 @@
                 if (!isEntryOnDate(entry, date)) return;
                 const amountHKD = toHKD(entry.amount, entry.currency);
                 if (entry.type === 'INCOME') incomeHKD += amountHKD;
-                else expenseHKD += amountHKD;
+                else if (entry.type === 'EXPENSE') expenseHKD += amountHKD;
 
                 rows.push({
                     id: `${entry.id}-${dateKey}`,
@@ -83,7 +83,7 @@
                     if (!isEntryOnDate(entry, date)) return;
                     const amountHKD = toHKD(entry.amount, entry.currency);
                     if (entry.type === 'INCOME') incomeHKD += amountHKD;
-                    else expenseHKD += amountHKD;
+                    else if (entry.type === 'EXPENSE') expenseHKD += amountHKD;
                 });
             }
 

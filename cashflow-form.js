@@ -9,8 +9,11 @@
     }) => {
         const t = typeof tByLang === 'function' ? tByLang : ((zh) => zh);
         const title = (cashflowForm.title || '').trim();
+        const isTransfer = cashflowForm.type === 'TRANSFER';
         const selectedLiquidAssetById = liquidAssetOptions.find(option => option.id === cashflowForm.targetLiquidAssetId) || null;
+        const selectedSourceLiquidAsset = liquidAssetOptions.find(option => option.id === cashflowForm.sourceLiquidAssetId) || null;
         const resolvedLiquidAsset = (() => {
+            if (isTransfer) return selectedLiquidAssetById;
             if (selectedLiquidAssetById) return selectedLiquidAssetById;
             const accountName = (cashflowForm.account || '').trim();
             if (!accountName) return null;
@@ -22,7 +25,9 @@
             }
             return null;
         })();
-        const account = resolvedLiquidAsset?.account || (cashflowForm.account || '').trim();
+        const account = isTransfer
+            ? (selectedSourceLiquidAsset?.account || (cashflowForm.account || '').trim())
+            : (resolvedLiquidAsset?.account || (cashflowForm.account || '').trim());
         const resolvedCategory = (cashflowForm.category || '').trim();
         const category = resolvedCategory || getDefaultCashflowCategory(cashflowForm.type);
         const note = (cashflowForm.note || '').trim();
@@ -47,6 +52,15 @@
         }
         if (!Number.isFinite(amount) || amount <= 0) {
             return { ok: false, error: t('請輸入有效金額', 'Please enter a valid amount', '有効な金額を入力してください') };
+        }
+
+        if (isTransfer) {
+            if (!selectedSourceLiquidAsset || !selectedLiquidAssetById) {
+                return { ok: false, error: t('請選擇轉出與轉入帳戶', 'Please select source and destination accounts', '振替元と振替先口座を選択してください') };
+            }
+            if (selectedSourceLiquidAsset.id === selectedLiquidAssetById.id) {
+                return { ok: false, error: t('轉出與轉入帳戶不能相同', 'Source and destination accounts must be different', '振替元と振替先は同じにできません') };
+            }
         }
 
         const oneTimeDates = scheduleType === 'ONE_TIME'
@@ -91,7 +105,7 @@
             note,
             type: cashflowForm.type,
             amount,
-            currency: cashflowForm.currency,
+            currency: isTransfer ? (selectedSourceLiquidAsset?.currency || cashflowForm.currency) : cashflowForm.currency,
             scheduleType,
             frequency,
             startDate: resolvedStartDate,
@@ -100,6 +114,7 @@
             weekday,
             monthday,
             payday: scheduleType === 'RECURRING' && frequency === 'MONTHLY' ? payday : parsedStart.getDate(),
+            sourceLiquidAssetId: isTransfer ? (selectedSourceLiquidAsset?.id || '') : '',
             targetLiquidAssetId: resolvedLiquidAsset?.id || ''
         };
 
@@ -108,7 +123,9 @@
             amount,
             nextEntry,
             isEditing: Boolean(editingCashflowId),
-            selectedLiquidAsset: resolvedLiquidAsset
+            selectedLiquidAsset: resolvedLiquidAsset,
+            selectedSourceLiquidAsset,
+            selectedTargetLiquidAsset: selectedLiquidAssetById
         };
     };
 
@@ -125,6 +142,13 @@
         tByLang
     }) => {
         const t = typeof tByLang === 'function' ? tByLang : ((zh) => zh);
+        if (!isEditing && nextEntry.type === 'TRANSFER' && nextEntry.sourceLiquidAssetId && nextEntry.targetLiquidAssetId) {
+            return t(
+                '轉帳規則已新增（預覽）：將在符合規則日期自動由來源帳戶轉入目標帳戶，並按匯率換算。',
+                'Transfer rule added (preview): funds will auto-transfer from source to destination on matching dates with FX conversion.',
+                '振替ルールを追加しました（プレビュー）：該当日に為替換算して自動振替します。'
+            );
+        }
         if (selectedLiquidAsset && !isEditing) {
             const amountHKD = toHKD(amount, cashflowCurrency);
             const amountInTargetCurrency = fromHKD(amountHKD, selectedLiquidAsset.currency);
@@ -187,6 +211,7 @@
         startDate: entry?.startDate || toDateKey(new Date()),
         endDate: entry?.endDate || '',
         payday: String(entry?.payday || entry?.monthday || 1),
+        sourceLiquidAssetId: entry?.sourceLiquidAssetId || '',
         targetLiquidAssetId: entry?.targetLiquidAssetId || '',
         note: entry?.note || ''
     });

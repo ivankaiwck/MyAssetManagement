@@ -55,8 +55,80 @@
         startNewAssetEntry,
         startNewCashflowEntry,
         startEditCashflowEntry,
-        handleDeleteCashflowEntry
-    }) => (
+        handleDeleteCashflowEntry,
+        openEdit,
+        AssetDetailListView,
+        categoryMixHexByKey,
+        groupedAssets,
+        cashflowAutoRulesByLiquidAssetId,
+        insuranceAutoPaidCountByAssetId,
+        insurancePartialWithdrawalStatsByAssetId,
+        onInsuranceFundRowFieldChange,
+        onInsuranceFundAppendRowWithData,
+        onInsuranceFundRemoveRow,
+        onInsuranceFundMoveRow,
+        onInsuranceFundDuplicateRow,
+        onInsuranceFundClearRows,
+        fundCurrencyOptions,
+        chartPalette,
+        fundAccentColor
+    }) => {
+        const [isSelectedItemModalOpen, setIsSelectedItemModalOpen] = React.useState(false);
+        const selectedMembers = accountStats?.selectedItem?.members || [];
+
+        const quickDetailGroupedAssets = React.useMemo(() => {
+            if (!accountStats?.selectedItem || !selectedMembers.length) return [];
+
+            const accountMap = {};
+            selectedMembers.forEach(item => {
+                const accountName = item?.account || tByLang('未分類帳戶', 'Uncategorized Account', '未分類口座');
+                if (!accountMap[accountName]) accountMap[accountName] = [];
+                accountMap[accountName].push(item);
+            });
+
+            const accounts = Object.entries(accountMap)
+                .sort((a, b) => String(a[0]).localeCompare(String(b[0]), 'zh-Hant', { numeric: true, sensitivity: 'base' }))
+                .map(([accountName, items]) => ({ accountName, items }));
+
+            return [{
+                categoryKey: selectedStatsCategory,
+                accounts
+            }];
+        }, [accountStats?.selectedItem, selectedMembers, selectedStatsCategory, tByLang]);
+
+        const quickExpandedAccounts = React.useMemo(() => {
+            const expanded = {};
+            quickDetailGroupedAssets.forEach(group => {
+                (group.accounts || []).forEach(account => {
+                    expanded[`${group.categoryKey}::${account.accountName}`] = true;
+                });
+            });
+            return expanded;
+        }, [quickDetailGroupedAssets]);
+
+        const handleQuickEditAsset = (asset) => {
+            if (!asset || typeof openEdit !== 'function') return;
+            openEdit(asset);
+        };
+
+        const handleEditSelectedItem = () => {
+            const targetAsset = selectedMembers[0];
+            if (!targetAsset) return;
+            handleQuickEditAsset(targetAsset);
+        };
+
+        const hasQuickDetailList = quickDetailGroupedAssets.length > 0;
+
+        React.useEffect(() => {
+            if (!isSelectedItemModalOpen) return;
+            const originalOverflow = document.body.style.overflow;
+            document.body.style.overflow = 'hidden';
+            return () => {
+                document.body.style.overflow = originalOverflow;
+            };
+        }, [isSelectedItemModalOpen]);
+
+        return (
         <>
             <div className="mb-4 flex items-center gap-2">
                 <button
@@ -199,7 +271,26 @@
                                     <details className="rounded-xl p-4 theme-summary-card" style={overviewPanelCardStyle} open>
                                         <summary className="md:hidden text-xs theme-text-sub font-black cursor-pointer list-none">{tByLang('已選擇項目細節', 'Selected Item Details', '選択中の項目詳細')}</summary>
                                         <div className="mt-3 md:mt-0">
-                                            <div className="text-xs theme-text-sub font-black mb-2">{tByLang('已選擇項目', 'Selected Item', '選択中の項目')}</div>
+                                            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                                <div className="text-xs theme-text-sub font-black">{tByLang('已選擇項目', 'Selected Item', '選択中の項目')}</div>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsSelectedItemModalOpen(true)}
+                                                        className="px-2.5 py-1 rounded-lg text-[11px] font-black theme-tab-inactive"
+                                                    >
+                                                        {tByLang('查看/修改', 'View/Edit', '表示/編集')}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleEditSelectedItem}
+                                                        disabled={!selectedMembers.length}
+                                                        className="px-2.5 py-1 rounded-lg text-[11px] font-black theme-tab-active disabled:opacity-50"
+                                                    >
+                                                        {tByLang('修改', 'Edit', '編集')}
+                                                    </button>
+                                                </div>
+                                            </div>
                                             <div className="text-base font-black theme-text-main mb-1">{accountStats.selectedItem.label}</div>
                                             <div className="text-xs theme-text-sub font-bold mb-2">
                                                 {statsBreakdownMode === 'ACCOUNT'
@@ -296,8 +387,63 @@
                     </div>
                 </section>
             )}
+
+            {isSelectedItemModalOpen && (
+                <div className="fixed inset-0 z-40 bg-black/45 flex items-center justify-center p-2 sm:p-4">
+                    <div className="theme-surface rounded-2xl shadow-2xl w-[98vw] h-[94vh] flex flex-col overflow-hidden">
+                        <div className="px-4 py-3 border-b theme-border flex items-center justify-between gap-3">
+                            <div>
+                                <div className="text-sm font-black theme-text-main">{tByLang('已選擇項目快速查看/修改', 'Quick View/Edit Selected Item', '選択中項目のクイック表示/編集')}</div>
+                                <div className="text-xs theme-text-sub font-bold">{accountStats?.selectedItem?.label || '-'}</div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsSelectedItemModalOpen(false)}
+                                className="px-3 py-1.5 rounded-lg text-xs font-black theme-tab-inactive"
+                            >
+                                {tByLang('關閉', 'Close', '閉じる')}
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-3 sm:p-4">
+                            {hasQuickDetailList && AssetDetailListView ? (
+                                <AssetDetailListView
+                                    groupedAssets={quickDetailGroupedAssets}
+                                    categoryMixHexByKey={categoryMixHexByKey}
+                                    translate={translate}
+                                    CATEGORIES={CATEGORIES}
+                                    toHKD={toHKD}
+                                    fromHKD={fromHKD}
+                                    displayCurrency={displayCurrency}
+                                    expandedAccounts={quickExpandedAccounts}
+                                    toggleAccountExpand={() => {}}
+                                    formatAmount={formatAmount}
+                                    openEdit={openEdit}
+                                    tByLang={tByLang}
+                                    cashflowAutoRulesByLiquidAssetId={cashflowAutoRulesByLiquidAssetId}
+                                    insuranceAutoPaidCountByAssetId={insuranceAutoPaidCountByAssetId}
+                                    insurancePartialWithdrawalStatsByAssetId={insurancePartialWithdrawalStatsByAssetId}
+                                    CASHFLOW_FREQUENCIES={CASHFLOW_FREQUENCIES}
+                                    onInsuranceFundRowFieldChange={onInsuranceFundRowFieldChange}
+                                    onInsuranceFundAppendRowWithData={onInsuranceFundAppendRowWithData}
+                                    onInsuranceFundRemoveRow={onInsuranceFundRemoveRow}
+                                    onInsuranceFundMoveRow={onInsuranceFundMoveRow}
+                                    onInsuranceFundDuplicateRow={onInsuranceFundDuplicateRow}
+                                    onInsuranceFundClearRows={onInsuranceFundClearRows}
+                                    fundCurrencyOptions={fundCurrencyOptions}
+                                    chartPalette={chartPalette}
+                                    fundAccentColor={fundAccentColor}
+                                    liquidAssetLabelById={liquidAssetLabelById}
+                                />
+                            ) : (
+                                <div className="text-sm font-bold theme-text-sub">{tByLang('目前沒有可查看的項目。', 'No items available for quick view.', 'クイック表示できる項目がありません。')}</div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
+    };
 
     window.APP_FINANCE_SECTION_VIEW = {
         FinanceSectionView

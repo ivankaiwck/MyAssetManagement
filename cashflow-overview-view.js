@@ -122,8 +122,8 @@
                                         <div className="text-[11px] text-slate-300 font-black">{tByLang('無流水', 'No records', '記録なし')}</div>
                                     ) : (
                                         day.entries.slice(0, 3).map(entry => (
-                                            <div key={entry.id} className={`text-[11px] truncate font-bold ${entry.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                {entry.type === 'INCOME' ? '+' : '-'}{entry.title}
+                                            <div key={entry.id} className={`text-[11px] truncate font-bold ${entry.type === 'INCOME' ? 'text-emerald-600' : (entry.type === 'TRANSFER' ? 'text-indigo-600' : 'text-rose-600')}`}>
+                                                {entry.type === 'INCOME' ? '+' : (entry.type === 'TRANSFER' ? '↔' : '-')}{entry.title}
                                             </div>
                                         ))
                                     )}
@@ -187,8 +187,8 @@
                                     )}
                                     <div className="space-y-0.5">
                                         {day.entries.slice(0, 2).map(entry => (
-                                            <div key={entry.id} className={`text-[10px] truncate font-bold ${entry.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                {entry.type === 'INCOME' ? '+' : '-'}{entry.title}
+                                            <div key={entry.id} className={`text-[10px] truncate font-bold ${entry.type === 'INCOME' ? 'text-emerald-600' : (entry.type === 'TRANSFER' ? 'text-indigo-600' : 'text-rose-600')}`}>
+                                                {entry.type === 'INCOME' ? '+' : (entry.type === 'TRANSFER' ? '↔' : '-')}{entry.title}
                                             </div>
                                         ))}
                                         {day.entries.length > 2 && (
@@ -264,15 +264,15 @@
                                 selectedDayDetail.entries.map(entry => (
                                     <div key={entry.id} className="rounded-lg border border-slate-100 p-2.5 flex items-start justify-between gap-2">
                                         <div className="min-w-0">
-                                            <div className={`text-xs font-black truncate ${entry.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                {entry.type === 'INCOME' ? '+' : '-'} {entry.title}
+                                            <div className={`text-xs font-black truncate ${entry.type === 'INCOME' ? 'text-emerald-600' : (entry.type === 'TRANSFER' ? 'text-indigo-600' : 'text-rose-600')}`}>
+                                                {entry.type === 'INCOME' ? '+' : (entry.type === 'TRANSFER' ? '↔' : '-')} {entry.title}
                                             </div>
                                             <div className="text-[10px] text-slate-400 font-bold truncate mt-0.5">
                                                 {entry.category}{entry.account ? ` · ${entry.account}` : ''}
                                             </div>
                                         </div>
-                                        <div className={`text-xs font-black shrink-0 ${entry.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                            {entry.type === 'INCOME' ? '+' : '-'}{formatAmount(entry.amountDisplay)} {displayCurrency}
+                                        <div className={`text-xs font-black shrink-0 ${entry.type === 'INCOME' ? 'text-emerald-600' : (entry.type === 'TRANSFER' ? 'text-indigo-600' : 'text-rose-600')}`}>
+                                            {entry.type === 'INCOME' ? '+' : (entry.type === 'TRANSFER' ? '↔' : '-')}{formatAmount(entry.amountDisplay)} {displayCurrency}
                                         </div>
                                     </div>
                                 ))

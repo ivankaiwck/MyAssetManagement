@@ -175,6 +175,7 @@
         applyCashflowOneTimeMonthPreset,
         clearCashflowOneTimeDates,
         updateCashflowType,
+        updateCashflowSourceLiquidAsset,
         updateCashflowTargetLiquidAsset,
         CASHFLOW_TYPES,
         CASHFLOW_SCHEDULE_TYPES,
@@ -196,6 +197,7 @@
         if (!DatePicker) {
             throw new Error('date-picker-view.js is missing or incomplete.');
         }
+        const isTransfer = cashflowForm.type === 'TRANSFER';
         return (
         <form ref={cashflowFormRef} onSubmit={handleCashflowSubmit} className="order-2 rounded-xl theme-soft-surface p-4 space-y-3">
             {editingCashflowId && (
@@ -239,7 +241,7 @@
                     </div>
                     <div className="space-y-1">
                         <label className={FIELD_LABEL_CLASS}>{tByLang('幣種', 'Currency', '通貨')}</label>
-                        <select value={cashflowForm.currency} onChange={updateCashflowField('currency')} className={CASHFLOW_INPUT_CLASS}>
+                        <select value={cashflowForm.currency} onChange={updateCashflowField('currency')} className={CASHFLOW_INPUT_CLASS} disabled={isTransfer}>
                             {CURRENCIES.map(currency => <option key={currency} value={currency}>{currency}</option>)}
                         </select>
                     </div>
@@ -302,13 +304,32 @@
                         {tByLang('進階欄位（可選）', 'Advanced Fields (Optional)', '詳細項目（任意）')}
                     </summary>
                     <div className="mt-3 space-y-3">
-                        <div className="space-y-1">
-                            <label className={FIELD_LABEL_CLASS}>{translate('入帳/扣款帳戶（流動資金）')}</label>
-                            <select value={cashflowForm.targetLiquidAssetId} onChange={updateCashflowTargetLiquidAsset} className={CASHFLOW_INPUT_CLASS}>
-                                <option value="">{tByLang('只做現金流記錄（不自動入帳）', 'Record cashflow only (no auto posting)', '現金流のみ記録（自動入出金なし）')}</option>
-                                {liquidAssetOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
-                            </select>
-                        </div>
+                        {isTransfer ? (
+                            <>
+                                <div className="space-y-1">
+                                    <label className={FIELD_LABEL_CLASS}>{tByLang('轉出帳戶（流動資金）', 'Source Account (Liquid)', '振替元口座（流動資金）')}</label>
+                                    <select value={cashflowForm.sourceLiquidAssetId} onChange={updateCashflowSourceLiquidAsset} className={CASHFLOW_INPUT_CLASS}>
+                                        <option value="">{tByLang('請選擇轉出帳戶', 'Select source account', '振替元口座を選択')}</option>
+                                        {liquidAssetOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className={FIELD_LABEL_CLASS}>{tByLang('轉入帳戶（流動資金）', 'Destination Account (Liquid)', '振替先口座（流動資金）')}</label>
+                                    <select value={cashflowForm.targetLiquidAssetId} onChange={updateCashflowTargetLiquidAsset} className={CASHFLOW_INPUT_CLASS}>
+                                        <option value="">{tByLang('請選擇轉入帳戶', 'Select destination account', '振替先口座を選択')}</option>
+                                        {liquidAssetOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+                                    </select>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="space-y-1">
+                                <label className={FIELD_LABEL_CLASS}>{translate('入帳/扣款帳戶（流動資金）')}</label>
+                                <select value={cashflowForm.targetLiquidAssetId} onChange={updateCashflowTargetLiquidAsset} className={CASHFLOW_INPUT_CLASS}>
+                                    <option value="">{tByLang('只做現金流記錄（不自動入帳）', 'Record cashflow only (no auto posting)', '現金流のみ記録（自動入出金なし）')}</option>
+                                    {liquidAssetOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+                                </select>
+                            </div>
+                        )}
                         <div className="space-y-1">
                             <label className={FIELD_LABEL_CLASS}>{translate('帳戶')}</label>
                             <input
@@ -318,9 +339,12 @@
                                 className={`${CASHFLOW_INPUT_FOCUS_CLASS} disabled:bg-slate-100 disabled:text-slate-400`}
                                 value={cashflowForm.account}
                                 onChange={updateCashflowField('account')}
-                                disabled={Boolean(cashflowForm.targetLiquidAssetId)}
+                                disabled={Boolean(cashflowForm.targetLiquidAssetId) || isTransfer}
                             />
-                            {cashflowForm.targetLiquidAssetId && (
+                            {isTransfer && (
+                                <div className="text-[10px] text-slate-400 font-bold ml-1">{tByLang('轉帳會自動依來源帳戶幣別扣款，並按匯率換算後入帳至目標帳戶。', 'Transfer deducts from source currency and deposits to destination with FX conversion.', '振替は元口座通貨で出金し、為替換算後に先口座へ入金します。')}</div>
+                            )}
+                            {cashflowForm.targetLiquidAssetId && !isTransfer && (
                                 <div className="text-[10px] text-slate-400 font-bold ml-1">{tByLang('已綁定流動資金帳戶，會在符合規則日期時入帳/扣款。', 'Linked to a liquid account; it will post on schedule dates.', '流動資金口座に連携済み。該当日に入出金されます。')}</div>
                             )}
                         </div>
@@ -384,28 +408,53 @@
                         </select>
                     </div>
                     <div className="space-y-1">
-                        <label className={FIELD_LABEL_CLASS}>{translate('入帳/扣款帳戶（流動資金）')}</label>
-                        <select
-                            value={cashflowForm.targetLiquidAssetId}
-                            onChange={updateCashflowTargetLiquidAsset}
-                            className={CASHFLOW_INPUT_CLASS}
-                        >
-                            <option value="">{tByLang('只做現金流記錄（不自動入帳）', 'Record cashflow only (no auto posting)', '現金流のみ記録（自動入出金なし）')}</option>
-                            {liquidAssetOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
-                        </select>
+                        <label className={FIELD_LABEL_CLASS}>{isTransfer ? tByLang('轉出帳戶（流動資金）', 'Source Account (Liquid)', '振替元口座（流動資金）') : translate('入帳/扣款帳戶（流動資金）')}</label>
+                        {isTransfer ? (
+                            <select
+                                value={cashflowForm.sourceLiquidAssetId}
+                                onChange={updateCashflowSourceLiquidAsset}
+                                className={CASHFLOW_INPUT_CLASS}
+                            >
+                                <option value="">{tByLang('請選擇轉出帳戶', 'Select source account', '振替元口座を選択')}</option>
+                                {liquidAssetOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+                            </select>
+                        ) : (
+                            <select
+                                value={cashflowForm.targetLiquidAssetId}
+                                onChange={updateCashflowTargetLiquidAsset}
+                                className={CASHFLOW_INPUT_CLASS}
+                            >
+                                <option value="">{tByLang('只做現金流記錄（不自動入帳）', 'Record cashflow only (no auto posting)', '現金流のみ記録（自動入出金なし）')}</option>
+                                {liquidAssetOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+                            </select>
+                        )}
                     </div>
                     <div className="space-y-1">
-                        <label className={FIELD_LABEL_CLASS}>{translate('帳戶')}</label>
-                        <input
-                            type="text"
-                            list="cashflow-account-options"
-                            placeholder={tByLang('可選，僅用於標記', 'Optional, for labeling only', '任意（ラベル用途のみ）')}
-                            className={`${CASHFLOW_INPUT_FOCUS_CLASS} disabled:bg-slate-100 disabled:text-slate-400`}
-                            value={cashflowForm.account}
-                            onChange={updateCashflowField('account')}
-                            disabled={Boolean(cashflowForm.targetLiquidAssetId)}
-                        />
-                        {cashflowForm.targetLiquidAssetId && (
+                        <label className={FIELD_LABEL_CLASS}>{isTransfer ? tByLang('轉入帳戶（流動資金）', 'Destination Account (Liquid)', '振替先口座（流動資金）') : translate('帳戶')}</label>
+                        {isTransfer ? (
+                            <select
+                                value={cashflowForm.targetLiquidAssetId}
+                                onChange={updateCashflowTargetLiquidAsset}
+                                className={CASHFLOW_INPUT_CLASS}
+                            >
+                                <option value="">{tByLang('請選擇轉入帳戶', 'Select destination account', '振替先口座を選択')}</option>
+                                {liquidAssetOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+                            </select>
+                        ) : (
+                            <input
+                                type="text"
+                                list="cashflow-account-options"
+                                placeholder={tByLang('可選，僅用於標記', 'Optional, for labeling only', '任意（ラベル用途のみ）')}
+                                className={`${CASHFLOW_INPUT_FOCUS_CLASS} disabled:bg-slate-100 disabled:text-slate-400`}
+                                value={cashflowForm.account}
+                                onChange={updateCashflowField('account')}
+                                disabled={Boolean(cashflowForm.targetLiquidAssetId)}
+                            />
+                        )}
+                        {isTransfer && (
+                            <div className="text-[10px] text-slate-400 font-bold ml-1">{tByLang('將按匯率由轉出帳戶扣款，並換算後轉入目標帳戶。', 'Deduct from source and convert by FX into destination account.', '振替元から出金し、為替換算して振替先へ入金します。')}</div>
+                        )}
+                        {cashflowForm.targetLiquidAssetId && !isTransfer && (
                             <div className="text-[10px] text-slate-400 font-bold ml-1">{tByLang('已綁定流動資金帳戶，會在符合規則日期時入帳/扣款（單次或固定）。', 'Linked to a liquid account; it will post on schedule dates (one-time or recurring).', '流動資金口座に連携済み。該当日に入出金されます（単発/定期）。')}</div>
                         )}
                     </div>
@@ -430,6 +479,7 @@
                             value={cashflowForm.currency}
                             onChange={updateCashflowField('currency')}
                             className={CASHFLOW_INPUT_CLASS}
+                            disabled={isTransfer}
                         >
                             {CURRENCIES.map(currency => <option key={currency} value={currency}>{currency}</option>)}
                         </select>

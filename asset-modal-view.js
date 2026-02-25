@@ -1278,10 +1278,6 @@
                                             <div className={MODAL_OUTPUT_CLASS}>{formatAmount(totalDistributedAmount)} {formData.currency}</div>
                                         </div>
                                         <div className="space-y-1">
-                                            <label className={FIELD_LABEL_CLASS}>{translate('積存餘額（自動）')}</label>
-                                            <div className={MODAL_OUTPUT_CLASS}>{formatAmount(accumulationBalancePreview)} {formData.currency}</div>
-                                        </div>
-                                        <div className="space-y-1">
                                             <label className={FIELD_LABEL_CLASS}>{translate('保單備註 (選填)')}</label>
                                             <input type="text" className={MODAL_INPUT_CLASS} value={formData.insuranceNote || ''} onChange={updateFormField('insuranceNote')} />
                                         </div>

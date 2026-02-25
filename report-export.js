@@ -330,7 +330,6 @@
                 tByLang(`總資產：${formatAmount(totals.assets)} ${displayCurrency}`, `Total Assets: ${formatAmount(totals.assets)} ${displayCurrency}`, `総資産：${formatAmount(totals.assets)} ${displayCurrency}`),
                 tByLang(`總負債：${formatAmount(totals.liabilities)} ${displayCurrency}`, `Total Liabilities: ${formatAmount(totals.liabilities)} ${displayCurrency}`, `総負債：${formatAmount(totals.liabilities)} ${displayCurrency}`),
                 tByLang(`淨資產：${formatAmount(totals.netWorth)} ${displayCurrency}`, `Net Worth: ${formatAmount(totals.netWorth)} ${displayCurrency}`, `純資産：${formatAmount(totals.netWorth)} ${displayCurrency}`),
-                tByLang(`積存餘額：${formatAmount(totals.accumulationBalance || 0)} ${displayCurrency}`, `Accumulated Balance: ${formatAmount(totals.accumulationBalance || 0)} ${displayCurrency}`, `積立残高：${formatAmount(totals.accumulationBalance || 0)} ${displayCurrency}`),
                 tByLang(`負債比：${totals.debtRatio.toFixed(2)}%`, `Debt Ratio: ${totals.debtRatio.toFixed(2)}%`, `負債比率：${totals.debtRatio.toFixed(2)}%`),
                 tByLang(`資產筆數：${assets.length} 筆`, `Asset Items: ${assets.length}`, `資産件数：${assets.length}`)
             ].map(line => `<div>${line}</div>`).join('');
@@ -700,15 +699,14 @@
                     tByLang('帳戶', 'Account', '口座'),
                     tByLang('名稱', 'Name', '名称'),
                     tByLang('幣種', 'Currency', '通貨'),
-                    tByLang('市值', 'Market Value', '時価'),
-                    tByLang('積存餘額', 'Accumulated Balance', '積立残高')
+                    tByLang('市值', 'Market Value', '時価')
                 ].forEach((text, idx) => {
                     const th = document.createElement('th');
                     th.textContent = text;
                     th.style.border = `1px solid ${headerBorder}`;
                     th.style.color = textMain;
                     th.style.padding = '6px 8px';
-                    th.style.textAlign = (idx === 0 || idx === 6 || idx === 7) ? 'right' : 'left';
+                    th.style.textAlign = (idx === 0 || idx === 6) ? 'right' : 'left';
                     headRow.appendChild(th);
                 });
                 table.appendChild(headRow);
@@ -717,7 +715,6 @@
                     const row = document.createElement('tr');
                     const marketValueOrig = Number(item.quantity || 0) * Number(item.currentPrice || 0);
                     const marketValueDisplay = fromHKD(toHKD(marketValueOrig, item.currency), displayCurrency);
-                    const accumulationBalanceDisplay = resolveAssetAccumulationBalance(item);
                     const cells = [
                         String(startIndex + index + 1),
                         translate(categories[item.category]?.label || item.category),
@@ -725,8 +722,7 @@
                         item.account || '',
                         item.name || '',
                         item.currency || '',
-                        `${formatAmount(marketValueDisplay)} ${displayCurrency}`,
-                        `${formatAmount(accumulationBalanceDisplay)} ${displayCurrency}`
+                        `${formatAmount(marketValueDisplay)} ${displayCurrency}`
                     ];
                     cells.forEach((value, i) => {
                         const td = document.createElement('td');
