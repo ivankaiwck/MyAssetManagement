@@ -205,6 +205,9 @@
             const paymentDay = Number.isInteger(paymentDayRaw) && paymentDayRaw >= 1 && paymentDayRaw <= 31
                 ? paymentDayRaw
                 : startDate.getDate();
+            if (formData.premiumFrequency === 'single') {
+                return upperBound.getTime() >= startDate.getTime() ? 1 : 0;
+            }
             const isYearly = formData.premiumFrequency === 'yearly';
 
             let year = startDate.getFullYear();
@@ -232,7 +235,8 @@
             return count;
         })();
 
-        const premiumTermsPerYear = formData.premiumFrequency === 'yearly' ? 1 : 12;
+        const isSinglePremiumFrequency = formData.premiumFrequency === 'single';
+        const premiumTermsPerYear = (formData.premiumFrequency === 'yearly' || isSinglePremiumFrequency) ? 1 : 12;
         const lifeBasePremiumAmount = Number(formData.insuranceBasePremiumAmount || 0);
         const lifeSupplementaryPremiumAmount = Number(formData.insuranceSupplementaryPremiumAmount || 0);
         const resolvedPremiumPerTerm = isLifeWealthInsuranceForm && (lifeBasePremiumAmount > 0 || lifeSupplementaryPremiumAmount > 0)
@@ -259,12 +263,14 @@
         const premiumPaymentYears = Number.isFinite(premiumPaymentYearsRaw) && premiumPaymentYearsRaw > 0
             ? Math.floor(premiumPaymentYearsRaw)
             : 0;
-        const premiumTotalTerms = premiumPaymentYears > 0 ? premiumPaymentYears * premiumTermsPerYear : 0;
+        const premiumTotalTerms = isSinglePremiumFrequency
+            ? 1
+            : (premiumPaymentYears > 0 ? premiumPaymentYears * premiumTermsPerYear : 0);
         const effectivePremiumPaidCount = premiumTotalTerms > 0
             ? Math.min(autoPremiumPaidCount, premiumTotalTerms)
             : autoPremiumPaidCount;
         const currentPolicyYear = effectivePremiumPaidCount > 0
-            ? (formData.premiumFrequency === 'yearly' ? effectivePremiumPaidCount : (Math.floor((effectivePremiumPaidCount - 1) / 12) + 1))
+            ? ((formData.premiumFrequency === 'yearly' || isSinglePremiumFrequency) ? effectivePremiumPaidCount : (Math.floor((effectivePremiumPaidCount - 1) / 12) + 1))
             : 0;
         const distributionStartYear = normalizeDistributionStartPolicyYear({
             startDateKey: formData.insuranceStartDate,
@@ -306,6 +312,7 @@
 
             const startDate = parseDate(formData.insuranceStartDate);
             if (!startDate) return '';
+            if (isSinglePremiumFrequency) return toDateKey(startDate);
 
             const paymentDayRaw = Number(formData.insurancePaymentDay);
             const paymentDay = Number.isInteger(paymentDayRaw) && paymentDayRaw >= 1 && paymentDayRaw <= 31
@@ -419,6 +426,40 @@
                             </div>
                         )}
 
+                        {isFundForm && (
+                            <div className={`${MODAL_GROUP_CLASS} grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4`}>
+                                <div className="space-y-1">
+                                    <label className={FIELD_LABEL_CLASS}>{tByLang('基金派息金額（每期）', 'Fund Distribution Amount (Per Cycle)', 'ファンド分配金額（各周期）')}</label>
+                                    <input type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.fundDistributionAmount || ''} onChange={updateFormField('fundDistributionAmount')} />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className={FIELD_LABEL_CLASS}>{tByLang('派息週期', 'Distribution Frequency', '分配周期')}</label>
+                                    <select className={MODAL_INPUT_CLASS} value={formData.fundDistributionFrequency || 'monthly'} onChange={updateFormField('fundDistributionFrequency')}>
+                                        <option value="monthly">{tByLang('每月', 'Monthly', '毎月')}</option>
+                                        <option value="yearly">{tByLang('每年', 'Yearly', '毎年')}</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className={FIELD_LABEL_CLASS}>{tByLang('派息開始日', 'Distribution Start Date', '分配開始日')}</label>
+                                    <DatePicker
+                                        value={formData.fundDistributionStartDate || ''}
+                                        onChange={updateFormField('fundDistributionStartDate')}
+                                        className={MODAL_INPUT_CLASS}
+                                        pageLanguage={pageLanguage}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className={FIELD_LABEL_CLASS}>{tByLang('派息入帳帳戶', 'Distribution Payout Account', '分配入金口座')}</label>
+                                    <select className={MODAL_INPUT_CLASS} value={formData.fundDistributionAccountId || ''} onChange={updateFormField('fundDistributionAccountId')}>
+                                        <option value="">{tByLang('請選擇流動資產帳戶', 'Select a liquid asset account', '流動資産口座を選択')}</option>
+                                        {(liquidAssetOptions || []).map(option => (
+                                            <option key={option.id} value={option.id}>{option.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+
 
                         {isFixedDepositForm && (
                             <div className={`${MODAL_GROUP_CLASS} space-y-4`}>
@@ -432,8 +473,23 @@
                                         <input required type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.fixedDepositAnnualRate} onChange={updateFormField('fixedDepositAnnualRate')} />
                                     </div>
                                     <div className="space-y-1">
-                                        <label className={FIELD_LABEL_CLASS}>{translate('存期 (月)')}</label>
-                                        <input required type="number" step="1" min="1" className={MODAL_INPUT_CLASS} value={formData.fixedDepositMonths} onChange={updateFormField('fixedDepositMonths')} />
+                                        <label className={FIELD_LABEL_CLASS}>{tByLang('期限模式', 'Term Mode', '期限モード')}</label>
+                                        <select className={MODAL_INPUT_CLASS} value={formData.fixedDepositTermMode || 'months'} onChange={updateFormField('fixedDepositTermMode')}>
+                                            <option value="months">{tByLang('按月數', 'By Months', '月数で指定')}</option>
+                                            <option value="days">{tByLang('按日數', 'By Days', '日数で指定')}</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className={FIELD_LABEL_CLASS}>
+                                            {(formData.fixedDepositTermMode || 'months') === 'days'
+                                                ? tByLang('存期 (天)', 'Term (Days)', '期間 (日)')
+                                                : tByLang('存期 (月)', 'Term (Months)', '期間 (月)')}
+                                        </label>
+                                        {(formData.fixedDepositTermMode || 'months') === 'days' ? (
+                                            <input required type="number" step="1" min="1" className={MODAL_INPUT_CLASS} value={formData.fixedDepositDays || ''} onChange={updateFormField('fixedDepositDays')} />
+                                        ) : (
+                                            <input required type="number" step="1" min="1" className={MODAL_INPUT_CLASS} value={formData.fixedDepositMonths || ''} onChange={updateFormField('fixedDepositMonths')} />
+                                        )}
                                     </div>
                                     <div className="space-y-1">
                                         <label className={FIELD_LABEL_CLASS}>{translate('起存日')}</label>
@@ -815,6 +871,7 @@
                                     <select className={MODAL_INPUT_CLASS} value={formData.premiumFrequency} onChange={updateFormField('premiumFrequency')}>
                                         <option value="monthly">{translate('每月')}</option>
                                         <option value="yearly">{translate('每年')}</option>
+                                        {isLifeWealthInsuranceForm && <option value="single">{tByLang('一次性', 'One-time', '単発')}</option>}
                                     </select>
                                 </div>
                                 {isLifeWealthInsuranceForm && (
@@ -859,23 +916,31 @@
                                                 ))}
                                             </select>
                                         </div>
-                                        <div className="space-y-1">
-                                            <label className={FIELD_LABEL_CLASS}>{translate('固定扣款日 (必填)')}</label>
-                                            <input
-                                                required
-                                                type="number"
-                                                min="1"
-                                                max="31"
-                                                step="1"
-                                                className={MODAL_INPUT_CLASS}
-                                                value={formData.insurancePaymentDay || ''}
-                                                onChange={updateFormField('insurancePaymentDay')}
-                                                placeholder={translate('例如：15')}
-                                            />
-                                            <div className="text-[10px] text-slate-400 font-bold">
-                                                {translate('若設定為 29-31 號，遇到短月份會自動改為月底扣款')}
+                                        {!isSinglePremiumFrequency && (
+                                            <div className="space-y-1">
+                                                <label className={FIELD_LABEL_CLASS}>{translate('固定扣款日 (必填)')}</label>
+                                                <input
+                                                    required
+                                                    type="number"
+                                                    min="1"
+                                                    max="31"
+                                                    step="1"
+                                                    className={MODAL_INPUT_CLASS}
+                                                    value={formData.insurancePaymentDay || ''}
+                                                    onChange={updateFormField('insurancePaymentDay')}
+                                                    placeholder={translate('例如：15')}
+                                                />
+                                                <div className="text-[10px] text-slate-400 font-bold">
+                                                    {translate('若設定為 29-31 號，遇到短月份會自動改為月底扣款')}
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
+                                        {isSinglePremiumFrequency && (
+                                            <div className="space-y-1">
+                                                <label className={FIELD_LABEL_CLASS}>{tByLang('扣款日期（自動）', 'Debit Date (Auto)', '引落日（自動）')}</label>
+                                                <div className={MODAL_OUTPUT_CLASS}>{formData.insuranceStartDate || '--'}</div>
+                                            </div>
+                                        )}
                                         <div className="space-y-1">
                                             <label className={FIELD_LABEL_CLASS}>{translate('保單生效日 (必填)')}</label>
                                             <DatePicker
@@ -936,6 +1001,35 @@
                                                     <label className={FIELD_LABEL_CLASS}>{tByLang('投資策略備註（選填）', 'Investment Strategy Note (Optional)', '運用方針メモ（任意）')}</label>
                                                     <input type="text" className={MODAL_INPUT_CLASS} value={formData.insuranceInvestmentStrategyNote || ''} onChange={updateFormField('insuranceInvestmentStrategyNote')} />
                                                 </div>
+                                                <div className="space-y-1">
+                                                    <label className={FIELD_LABEL_CLASS}>{tByLang('基金派息金額（每期）', 'Fund Distribution Amount (Per Cycle)', 'ファンド分配金額（各周期）')}</label>
+                                                    <input type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.insuranceInvestmentDistributionAmount || ''} onChange={updateFormField('insuranceInvestmentDistributionAmount')} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className={FIELD_LABEL_CLASS}>{tByLang('派息週期', 'Distribution Frequency', '分配周期')}</label>
+                                                    <select className={MODAL_INPUT_CLASS} value={formData.insuranceInvestmentDistributionFrequency || 'monthly'} onChange={updateFormField('insuranceInvestmentDistributionFrequency')}>
+                                                        <option value="monthly">{tByLang('每月', 'Monthly', '毎月')}</option>
+                                                        <option value="yearly">{tByLang('每年', 'Yearly', '毎年')}</option>
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className={FIELD_LABEL_CLASS}>{tByLang('派息開始日', 'Distribution Start Date', '分配開始日')}</label>
+                                                    <DatePicker
+                                                        value={formData.insuranceInvestmentDistributionStartDate || formData.insuranceStartDate || ''}
+                                                        onChange={updateFormField('insuranceInvestmentDistributionStartDate')}
+                                                        className={MODAL_INPUT_CLASS}
+                                                        pageLanguage={pageLanguage}
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className={FIELD_LABEL_CLASS}>{tByLang('派息入帳帳戶', 'Distribution Payout Account', '分配入金口座')}</label>
+                                                    <select className={MODAL_INPUT_CLASS} value={formData.insuranceInvestmentDistributionAccountId || ''} onChange={updateFormField('insuranceInvestmentDistributionAccountId')}>
+                                                        <option value="">{tByLang('請選擇流動資產帳戶', 'Select a liquid asset account', '流動資産口座を選択')}</option>
+                                                        {(liquidAssetOptions || []).map(option => (
+                                                            <option key={option.id} value={option.id}>{option.label}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
                                                 <div className="space-y-1 md:col-span-2">
                                                     <label className={FIELD_LABEL_CLASS}>{tByLang('基金子項目管理', 'Fund Item Management', 'ファンド項目管理')}</label>
                                                     <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-2 text-[10px] font-black text-indigo-700">
@@ -946,19 +1040,31 @@
                                                 </div>
                                             </>
                                         )}
-                                        <div className="space-y-1">
-                                            <label className={FIELD_LABEL_CLASS}>{translate('保額/名義金額 (選填)')}</label>
-                                            <input type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.insuranceCoverageAmount || ''} onChange={updateFormField('insuranceCoverageAmount')} />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className={FIELD_LABEL_CLASS}>{translate('保單價值 (選填)')}</label>
-                                            <input type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.insurancePolicyValue || ''} onChange={updateFormField('insurancePolicyValue')} />
-                                            <div className="text-[10px] text-slate-400 font-bold">{tByLang('建議先填總保單價值；若要更精細可在下方進階欄位填保證/非保證', 'Use total policy value first; add guaranteed/non-guaranteed values in Advanced only when needed', 'まず保険価値合計を入力し、必要時のみ詳細欄で保証/非保証を入力')}</div>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className={FIELD_LABEL_CLASS}>{translate('繳費年期 (年，選填)')}</label>
-                                            <input type="number" step="1" min="1" className={MODAL_INPUT_CLASS} value={formData.insurancePremiumPaymentYears || ''} onChange={updateFormField('insurancePremiumPaymentYears')} />
-                                        </div>
+                                        {!isInvestmentLinkedLifeSubtype && (
+                                            <>
+                                                <div className="space-y-1">
+                                                    <label className={FIELD_LABEL_CLASS}>{translate('保額/名義金額 (選填)')}</label>
+                                                    <input type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.insuranceCoverageAmount || ''} onChange={updateFormField('insuranceCoverageAmount')} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className={FIELD_LABEL_CLASS}>{translate('保單價值 (選填)')}</label>
+                                                    <input type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.insurancePolicyValue || ''} onChange={updateFormField('insurancePolicyValue')} />
+                                                    <div className="text-[10px] text-slate-400 font-bold">{tByLang('建議先填總保單價值；若要更精細可在下方進階欄位填保證/非保證', 'Use total policy value first; add guaranteed/non-guaranteed values in Advanced only when needed', 'まず保険価値合計を入力し、必要時のみ詳細欄で保証/非保証を入力')}</div>
+                                                </div>
+                                            </>
+                                        )}
+                                        {isInvestmentLinkedLifeSubtype && (
+                                            <div className="space-y-1 md:col-span-2">
+                                                <label className={FIELD_LABEL_CLASS}>{tByLang('保單價值（自動）', 'Policy Value (Auto)', '保単価値（自動）')}</label>
+                                                <div className={MODAL_OUTPUT_CLASS}>{tByLang('由基金子項目市值自動加總', 'Auto-summed from fund item market values', 'ファンド項目の時価を自動合計')}</div>
+                                            </div>
+                                        )}
+                                        {!isSinglePremiumFrequency && (
+                                            <div className="space-y-1">
+                                                <label className={FIELD_LABEL_CLASS}>{translate('繳費年期 (年，選填)')}</label>
+                                                <input type="number" step="1" min="1" className={MODAL_INPUT_CLASS} value={formData.insurancePremiumPaymentYears || ''} onChange={updateFormField('insurancePremiumPaymentYears')} />
+                                            </div>
+                                        )}
                                         <div className="space-y-1">
                                             <label className={FIELD_LABEL_CLASS}>{translate('受益人 (選填)')}</label>
                                             <input type="text" className={MODAL_INPUT_CLASS} value={formData.insuranceBeneficiary || ''} onChange={updateFormField('insuranceBeneficiary')} />
@@ -1075,14 +1181,18 @@
                                                     <label className={FIELD_LABEL_CLASS}>{translate('積存年利率 (%) (選填)')}</label>
                                                     <input type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.insuranceAccumulationRate || ''} onChange={updateFormField('insuranceAccumulationRate')} />
                                                 </div>
-                                                <div className="space-y-1">
-                                                    <label className={FIELD_LABEL_CLASS}>{translate('保證現金價值 (選填)')}</label>
-                                                    <input type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.insuranceGuaranteedCashValue || ''} onChange={updateFormField('insuranceGuaranteedCashValue')} />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <label className={FIELD_LABEL_CLASS}>{translate('非保證現金價值 (選填)')}</label>
-                                                    <input type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.insuranceNonGuaranteedCashValue || ''} onChange={updateFormField('insuranceNonGuaranteedCashValue')} />
-                                                </div>
+                                                {!isInvestmentLinkedLifeSubtype && (
+                                                    <>
+                                                        <div className="space-y-1">
+                                                            <label className={FIELD_LABEL_CLASS}>{translate('保證現金價值 (選填)')}</label>
+                                                            <input type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.insuranceGuaranteedCashValue || ''} onChange={updateFormField('insuranceGuaranteedCashValue')} />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className={FIELD_LABEL_CLASS}>{translate('非保證現金價值 (選填)')}</label>
+                                                            <input type="number" step="any" min="0" className={MODAL_INPUT_CLASS} value={formData.insuranceNonGuaranteedCashValue || ''} onChange={updateFormField('insuranceNonGuaranteedCashValue')} />
+                                                        </div>
+                                                    </>
+                                                )}
                                             </div>
                                         </details>
                                         {editingId && (

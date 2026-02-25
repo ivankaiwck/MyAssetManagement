@@ -10,9 +10,14 @@
         if (parsed.getFullYear() !== year || parsed.getMonth() !== (month - 1) || parsed.getDate() !== day) return null;
         return parsed;
     };
-    const resolveFixedDepositMaturityDateKey = ({ startDateKey, months }) => {
+    const resolveFixedDepositMaturityDateKey = ({ startDateKey, months, days, termMode }) => {
         const startDate = parseDateStringSafe(startDateKey || '');
         if (!startDate) return '';
+        const normalizedMode = termMode === 'days' ? 'days' : 'months';
+        if (normalizedMode === 'days') {
+            const termDays = Math.max(1, Math.floor(Number(days || 0) || 0));
+            return toDateKeySafe(new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + termDays));
+        }
         const termMonths = Math.max(1, Math.floor(Number(months || 0) || 0));
         const targetMonthDate = new Date(startDate.getFullYear(), startDate.getMonth() + termMonths, 1);
         const daysInTargetMonth = new Date(targetMonthDate.getFullYear(), targetMonthDate.getMonth() + 1, 0).getDate();
@@ -27,6 +32,9 @@
     };
     const buildFirstBillingDate = (startDate, paymentDay, frequency) => {
         if (!startDate) return null;
+        if (frequency === 'single') {
+            return new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+        }
         const freq = frequency === 'yearly' ? 'yearly' : 'monthly';
         const normalizedDay = Number.isInteger(paymentDay) && paymentDay >= 1 && paymentDay <= 31
             ? paymentDay
@@ -47,6 +55,13 @@
         const startDate = parseDateStringSafe(startDateKey);
         if (!startDate) return '';
         const endDate = parseDateStringSafe(endDateKey || '');
+        if (frequency === 'single') {
+            const today = new Date();
+            const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            const startOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+            if (endDate && startOnly.getTime() > endDate.getTime()) return '';
+            return startOnly.getTime() >= todayOnly.getTime() ? toDateKeySafe(startOnly) : '';
+        }
         let cursor = buildFirstBillingDate(startDate, paymentDay, frequency);
         if (!cursor) return '';
         const today = new Date();
@@ -67,6 +82,9 @@
         const startDate = parseDateStringSafe(startDateKey);
         const endDate = parseDateStringSafe(endDateKey || '');
         if (!startDate || !endDate) return null;
+        if (frequency === 'single') {
+            return startDate.getTime() <= endDate.getTime() ? 1 : 0;
+        }
         let cursor = buildFirstBillingDate(startDate, paymentDay, frequency);
         if (!cursor || cursor.getTime() > endDate.getTime()) return 0;
         let count = 0;
@@ -113,6 +131,11 @@
         if (currencyOptions.includes(upperRaw)) return { fundCode: '', currency: upperRaw };
         return { fundCode: raw, currency: '' };
     };
+    const resolvePremiumTermsPerYear = (frequency) => (frequency === 'yearly' || frequency === 'single') ? 1 : 12;
+    const resolvePremiumCycleLabel = (frequency, tByLang) => {
+        if (frequency === 'single') return tByLang('一次性', 'one-time', '単発');
+        return frequency === 'yearly' ? tByLang('每年', 'yearly', '毎年') : tByLang('每月', 'monthly', '毎月');
+    };
     const buildFundCodeCurrency = (fundCode, currency) => {
         const codeText = String(fundCode || '').trim();
         const currencyText = String(currency || '').trim().toUpperCase();
@@ -144,6 +167,11 @@
                     unitsRaw: parts[5] || '',
                     unitPriceRaw: parts[6] || '',
                     averagePriceRaw: parts[7] || '',
+                    distributionAmountRaw: parts[8] || '',
+                    distributionFrequency: String(parts[9] || 'monthly').toLowerCase() === 'yearly' ? 'yearly' : 'monthly',
+                    distributionStartDate: parts[10] || '',
+                    distributionAccountId: parts[11] || '',
+                    fundRowId: parts[12] || '',
                     balance,
                     units,
                     unitPrice,
@@ -168,12 +196,14 @@
         onInsuranceFundRemoveRow,
         onInsuranceFundClearRows,
         fundCurrencyOptions,
+        liquidAssetLabelById,
         chartPalette,
         accentColor,
         layout = 'mobile'
     }) => {
-        const emptyDraft = { investmentOption: '', fundCode: '', currency: 'HKD', units: '', unitPrice: '', averagePrice: '' };
+        const emptyDraft = { investmentOption: '', fundCode: '', currency: 'HKD', units: '', unitPrice: '', averagePrice: '', distributionAmount: '', distributionFrequency: 'monthly', distributionStartDate: '', distributionAccountId: '', fundRowId: '' };
         const [modalState, setModalState] = React.useState({ mode: '', rowIndex: -1, draft: emptyDraft });
+        const distributionAccountOptions = Object.entries(liquidAssetLabelById || {}).map(([id, label]) => ({ id, label }));
 
         const palette = Array.isArray(chartPalette) && chartPalette.length > 0
             ? chartPalette
@@ -245,6 +275,11 @@
             onInsuranceFundRowFieldChange(item.id, rowIndex, 'units', draft.units || '');
             onInsuranceFundRowFieldChange(item.id, rowIndex, 'unitPrice', draft.unitPrice || '');
             onInsuranceFundRowFieldChange(item.id, rowIndex, 'averagePrice', draft.averagePrice || '');
+            onInsuranceFundRowFieldChange(item.id, rowIndex, 'distributionAmount', draft.distributionAmount || '');
+            onInsuranceFundRowFieldChange(item.id, rowIndex, 'distributionFrequency', draft.distributionFrequency === 'yearly' ? 'yearly' : 'monthly');
+            onInsuranceFundRowFieldChange(item.id, rowIndex, 'distributionStartDate', draft.distributionStartDate || '');
+            onInsuranceFundRowFieldChange(item.id, rowIndex, 'distributionAccountId', draft.distributionAccountId || '');
+            onInsuranceFundRowFieldChange(item.id, rowIndex, 'fundRowId', draft.fundRowId || '');
         };
 
         const openAddModal = () => {
@@ -253,7 +288,8 @@
                 rowIndex: -1,
                 draft: {
                     ...emptyDraft,
-                    currency: (fundCurrencyOptions && fundCurrencyOptions[0]) ? fundCurrencyOptions[0] : 'HKD'
+                    currency: (fundCurrencyOptions && fundCurrencyOptions[0]) ? fundCurrencyOptions[0] : 'HKD',
+                    distributionAccountId: (distributionAccountOptions[0]?.id || '')
                 }
             });
         };
@@ -268,7 +304,12 @@
                     currency: row.currency || item.currency || 'HKD',
                     units: row.unitsRaw || '',
                     unitPrice: row.unitPriceRaw || '',
-                    averagePrice: row.averagePriceRaw || ''
+                    averagePrice: row.averagePriceRaw || '',
+                    distributionAmount: row.distributionAmountRaw || '',
+                    distributionFrequency: row.distributionFrequency === 'yearly' ? 'yearly' : 'monthly',
+                    distributionStartDate: row.distributionStartDate || '',
+                    distributionAccountId: row.distributionAccountId || '',
+                    fundRowId: row.fundRowId || ''
                 }
             });
         };
@@ -283,7 +324,12 @@
                 codeCurrency: buildFundCodeCurrency(modalState.draft.fundCode, modalState.draft.currency),
                 units: modalState.draft.units || '',
                 unitPrice: modalState.draft.unitPrice || '',
-                averagePrice: modalState.draft.averagePrice || ''
+                averagePrice: modalState.draft.averagePrice || '',
+                distributionAmount: modalState.draft.distributionAmount || '',
+                distributionFrequency: modalState.draft.distributionFrequency === 'yearly' ? 'yearly' : 'monthly',
+                distributionStartDate: modalState.draft.distributionStartDate || '',
+                distributionAccountId: modalState.draft.distributionAccountId || '',
+                fundRowId: modalState.draft.fundRowId || ''
             };
 
             if (modalState.mode === 'add') {
@@ -424,6 +470,11 @@
                                             <td className="px-2 py-2"><span className={computedPnlPercent >= 0 ? 'font-bold text-emerald-700' : 'font-bold text-rose-700'}>{computedPnlPercent >= 0 ? '+' : ''}{computedPnlPercent.toFixed(2)}%</span></td>
                                             <td className="px-2 py-2">
                                                 <div className="font-bold theme-text-main">{formatAmount(row.balance)} {row.currency || item.currency || 'HKD'}</div>
+                                                {Number(row.distributionAmountRaw || 0) > 0 && (
+                                                    <div className="text-[10px] text-indigo-600">
+                                                        {tByLang('派息', 'Distribution', '分配')} {formatAmount(row.distributionAmountRaw)} {item.currency} · {row.distributionFrequency === 'yearly' ? tByLang('每年', 'Yearly', '毎年') : tByLang('每月', 'Monthly', '毎月')}
+                                                    </div>
+                                                )}
                                             </td>
                                             <td className="px-2 py-2 text-right">
                                                 <div className="inline-flex items-center gap-1 text-[10px] font-black">
@@ -478,6 +529,11 @@
                                         <div>
                                             <div className="theme-text-sub">{tByLang('結餘', 'Balance', '残高')}</div>
                                             <div className={computedPnlClass}>{formatAmount(row.balance)} {row.currency || item.currency || 'HKD'}</div>
+                                            {Number(row.distributionAmountRaw || 0) > 0 && (
+                                                <div className="text-[10px] text-indigo-600">
+                                                    {tByLang('派息', 'Distribution', '分配')} {formatAmount(row.distributionAmountRaw)} {item.currency}
+                                                </div>
+                                            )}
                                         </div>
                                         <div>
                                             <div className="theme-text-sub">{tByLang('單位價格', 'Unit Price', '基準価額')}</div>
@@ -532,6 +588,28 @@
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-black theme-text-sub">{tByLang('平均價格', 'Average Price', '平均価格')}</label>
                                     <input type="number" step="any" min="0" value={modalState.draft.averagePrice} onChange={(event) => setModalState(prev => ({ ...prev, draft: { ...prev.draft, averagePrice: event.target.value } }))} className="w-full rounded-lg theme-input px-3 py-2 text-sm font-bold" />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black theme-text-sub">{tByLang('每期派息', 'Distribution / Cycle', '各周期分配')}</label>
+                                    <input type="number" step="any" min="0" value={modalState.draft.distributionAmount} onChange={(event) => setModalState(prev => ({ ...prev, draft: { ...prev.draft, distributionAmount: event.target.value } }))} className="w-full rounded-lg theme-input px-3 py-2 text-sm font-bold" />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black theme-text-sub">{tByLang('派息週期', 'Distribution Frequency', '分配周期')}</label>
+                                    <select value={modalState.draft.distributionFrequency || 'monthly'} onChange={(event) => setModalState(prev => ({ ...prev, draft: { ...prev.draft, distributionFrequency: event.target.value } }))} className="w-full rounded-lg theme-input px-3 py-2 text-sm font-bold">
+                                        <option value="monthly">{tByLang('每月', 'Monthly', '毎月')}</option>
+                                        <option value="yearly">{tByLang('每年', 'Yearly', '毎年')}</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black theme-text-sub">{tByLang('派息開始日', 'Distribution Start Date', '分配開始日')}</label>
+                                    <input type="date" value={modalState.draft.distributionStartDate || ''} onChange={(event) => setModalState(prev => ({ ...prev, draft: { ...prev.draft, distributionStartDate: event.target.value } }))} className="w-full rounded-lg theme-input px-3 py-2 text-sm font-bold" />
+                                </div>
+                                <div className="space-y-1 md:col-span-2">
+                                    <label className="text-[10px] font-black theme-text-sub">{tByLang('派息入帳帳戶', 'Distribution Payout Account', '分配入金口座')}</label>
+                                    <select value={modalState.draft.distributionAccountId || ''} onChange={(event) => setModalState(prev => ({ ...prev, draft: { ...prev.draft, distributionAccountId: event.target.value } }))} className="w-full rounded-lg theme-input px-3 py-2 text-sm font-bold">
+                                        <option value="">{tByLang('請選擇帳戶', 'Select account', '口座を選択')}</option>
+                                        {distributionAccountOptions.map(option => <option key={`${item.id}-dist-account-${option.id}`} value={option.id}>{option.label}</option>)}
+                                    </select>
                                 </div>
                             </div>
 
@@ -633,8 +711,11 @@
                 const premiumPaymentYears = Number.isFinite(premiumPaymentYearsRaw) && premiumPaymentYearsRaw > 0
                     ? Math.floor(premiumPaymentYearsRaw)
                     : 0;
-                const premiumTermsPerYear = item.premiumFrequency === 'yearly' ? 1 : 12;
-                const premiumTermCap = premiumPaymentYears > 0 ? premiumPaymentYears * premiumTermsPerYear : 0;
+                const premiumTermsPerYear = resolvePremiumTermsPerYear(item.premiumFrequency);
+                const premiumTotalTermsRaw = Number(item.insurancePremiumTotalTerms || 0);
+                const premiumTermCap = premiumTotalTermsRaw > 0
+                    ? Math.floor(premiumTotalTermsRaw)
+                    : (premiumPaymentYears > 0 ? premiumPaymentYears * premiumTermsPerYear : 0);
                 const paidCountRaw = Math.max(manualPremiumPaidCount, autoPremiumPaidCount);
                 const effectivePremiumPaidCount = premiumTermCap > 0 ? Math.min(paidCountRaw, premiumTermCap) : paidCountRaw;
                 const premiumAmount = Number(item.premiumAmount || 0);
@@ -642,8 +723,9 @@
                 const premiumTotalHKD = toHKD(premiumTotalAmount, item.currency || 'HKD');
                 const isPolicyFullyPaid = premiumTermCap > 0 && effectivePremiumPaidCount >= premiumTermCap;
                 const currentPolicyYear = effectivePremiumPaidCount > 0
-                    ? (item.premiumFrequency === 'yearly' ? effectivePremiumPaidCount : (Math.floor((effectivePremiumPaidCount - 1) / 12) + 1))
+                    ? ((item.premiumFrequency === 'yearly' || item.premiumFrequency === 'single') ? effectivePremiumPaidCount : (Math.floor((effectivePremiumPaidCount - 1) / 12) + 1))
                     : 0;
+                const premiumCycleLabel = resolvePremiumCycleLabel(item.premiumFrequency, tByLang);
                 const investmentAccountBalanceDisplay = fromHKD(investmentFundTotals.balanceHKD, displayCurrency);
                 const investmentAccountPnlDisplay = fromHKD(investmentFundTotals.balanceHKD - premiumTotalHKD, displayCurrency);
                 const distributionStartYear = normalizeDistributionStartPolicyYear({
@@ -692,9 +774,15 @@
                                             {isPolicyFullyPaid
                                                 ? ''
                                                 : tByLang(
-                                                    ` · ${item.premiumFrequency === 'yearly' ? '每年' : '每月'} · 扣款日 ${insuranceHasPaymentDay ? `${insurancePaymentDay} 號` : '--'} · 下期 ${nextBillingDateKey || '--'}`,
-                                                    ` · ${item.premiumFrequency === 'yearly' ? 'yearly' : 'monthly'} · Debit Day ${insuranceHasPaymentDay ? `${insurancePaymentDay}` : '--'} · Next ${nextBillingDateKey || '--'}`,
-                                                    ` ・${item.premiumFrequency === 'yearly' ? '毎年' : '毎月'} ・引落日 ${insuranceHasPaymentDay ? `${insurancePaymentDay}日` : '--'} ・次回 ${nextBillingDateKey || '--'}`
+                                                    item.premiumFrequency === 'single'
+                                                        ? ` · 一次性 · 扣款日 ${item.insuranceStartDate || '--'}`
+                                                        : ` · ${premiumCycleLabel} · 扣款日 ${insuranceHasPaymentDay ? `${insurancePaymentDay} 號` : '--'} · 下期 ${nextBillingDateKey || '--'}`,
+                                                    item.premiumFrequency === 'single'
+                                                        ? ` · one-time · Debit Date ${item.insuranceStartDate || '--'}`
+                                                        : ` · ${premiumCycleLabel} · Debit Day ${insuranceHasPaymentDay ? `${insurancePaymentDay}` : '--'} · Next ${nextBillingDateKey || '--'}`,
+                                                    item.premiumFrequency === 'single'
+                                                        ? ` ・単発 ・引落日 ${item.insuranceStartDate || '--'}`
+                                                        : ` ・${premiumCycleLabel} ・引落日 ${insuranceHasPaymentDay ? `${insurancePaymentDay}日` : '--'} ・次回 ${nextBillingDateKey || '--'}`
                                                 )}
                                         </span>
                                         {isPolicyFullyPaid && (
@@ -757,7 +845,7 @@
                                 {insuranceProvider && <div className="text-indigo-700">{tByLang('保險公司', 'Insurance Company', '保険会社')}：{insuranceProvider}</div>}
                                 {insurancePolicyNumber && <div className="text-violet-700">{tByLang('保單號', 'Policy Number', '証券番号')}：{insurancePolicyNumber}</div>}
                                 {insuranceBeneficiary && <div className="text-emerald-700">受益人：{insuranceBeneficiary}</div>}
-                                {insuranceCoverageAmount > 0 && <div className="text-amber-700">保額：{formatAmount(insuranceCoverageAmount)} {item.currency}</div>}
+                                {!isInvestmentLinkedLifeSubtype && insuranceCoverageAmount > 0 && <div className="text-amber-700">保額：{formatAmount(insuranceCoverageAmount)} {item.currency}</div>}
                                 {isLifeInsurance && (insuranceBasePremiumAmount > 0 || (insuranceHasSupplementaryBenefit && insuranceSupplementaryPremiumAmount > 0)) && (
                                     <div className="text-amber-700">
                                         {tByLang('保費組合：主約 ', 'Premium Mix: Base ', '保険料内訳：主契約 ')}{formatAmount(insuranceBasePremiumAmount)} {item.currency}
@@ -793,6 +881,7 @@
                                         fromHKD={fromHKD}
                                         displayCurrency={displayCurrency}
                                         fundCurrencyOptions={fundCurrencyOptions}
+                                        liquidAssetLabelById={liquidAssetLabelById}
                                         chartPalette={chartPalette}
                                         accentColor={fundAccentColor}
                                         premiumTotalAmount={premiumTotalAmount}
@@ -884,12 +973,21 @@
                             const perf = costValOrig > 0 ? (profitOrig / costValOrig) * 100 : 0;
                             const isFixedDepositItem = item.subtype === '定期存款';
                             const isBankWealthItem = item.subtype === '銀行理財';
+                            const isFundInvestItem = item.subtype === '基金';
+                            const fundDistributionAmount = Number(item.fundDistributionAmount || 0);
+                            const fundDistributionFrequency = String(item.fundDistributionFrequency || 'monthly').toLowerCase() === 'yearly' ? 'yearly' : 'monthly';
+                            const fundDistributionStartDate = item.fundDistributionStartDate || '';
+                            const fundDistributionAccountLabel = liquidAssetLabelById?.[item.fundDistributionAccountId] || '';
                             const fixedDepositMonths = Number(item.fixedDepositMonths || 0);
+                            const fixedDepositDays = Number(item.fixedDepositDays || 0);
+                            const fixedDepositTermMode = item.fixedDepositTermMode === 'days' ? 'days' : 'months';
                             const fixedDepositRate = Number(item.fixedDepositAnnualRate || 0);
                             const fixedDepositStartDate = item.fixedDepositStartDate || '';
                             const fixedDepositMaturityDate = resolveFixedDepositMaturityDateKey({
                                 startDateKey: fixedDepositStartDate,
-                                months: fixedDepositMonths
+                                months: fixedDepositMonths,
+                                days: fixedDepositDays,
+                                termMode: fixedDepositTermMode
                             });
                             const fixedDepositTargetLabel = liquidAssetLabelById?.[item.fixedDepositTargetLiquidAssetId] || '';
                             const bankWealthTermDays = Number(item.bankWealthTermDays || 0);
@@ -916,7 +1014,7 @@
                                     <div className="text-slate-500">現價 {formatAmount(item.currentPrice)} · 成本 {formatAmount(item.costBasis)} {item.currency}</div>
                                     {isFixedDepositItem && (
                                         <>
-                                            <div className="text-slate-500">定期 {fixedDepositMonths || '--'} 個月 · 年利率 {fixedDepositRate.toFixed(2)}% {fixedDepositStartDate ? `· 起存 ${fixedDepositStartDate}` : ''}</div>
+                                            <div className="text-slate-500">定期 {fixedDepositTermMode === 'days' ? `${fixedDepositDays || '--'} 天` : `${fixedDepositMonths || '--'} 個月`} · 年利率 {fixedDepositRate.toFixed(2)}% {fixedDepositStartDate ? `· 起存 ${fixedDepositStartDate}` : ''}</div>
                                             <div className="text-slate-500">
                                                 {tByLang('預計到期', 'Expected Maturity', '満期予定')} {fixedDepositMaturityDate || '--'}
                                                 {fixedDepositTargetLabel ? ` · ${tByLang('到期入帳', 'Maturity Payout', '満期入金')} ${fixedDepositTargetLabel}` : ''}
@@ -938,6 +1036,19 @@
                                                 {tByLang('入帳模式', 'Payout Mode', '入金モード')} {bankWealthPayoutMode === 'max' ? tByLang('最高', 'Maximum', '最高') : (bankWealthPayoutMode === 'manual' ? tByLang('手動', 'Manual', '手動') : tByLang('保底', 'Guaranteed', '最低'))}
                                                 {' · '}
                                                 {tByLang('到期入帳額', 'Payout Amount', '入金額')} {formatAmount(bankWealthPayoutAmount)} {item.currency}
+                                            </div>
+                                        </>
+                                    )}
+                                    {isFundInvestItem && fundDistributionAmount > 0 && (
+                                        <>
+                                            <div className="text-slate-500">
+                                                {tByLang('基金派息', 'Fund Distribution', 'ファンド分配')} {formatAmount(fundDistributionAmount)} {item.currency}
+                                                {' · '}
+                                                {fundDistributionFrequency === 'yearly' ? tByLang('每年', 'Yearly', '毎年') : tByLang('每月', 'Monthly', '毎月')}
+                                            </div>
+                                            <div className="text-slate-500">
+                                                {tByLang('開始日', 'Start Date', '開始日')} {fundDistributionStartDate || '--'}
+                                                {fundDistributionAccountLabel ? ` · ${tByLang('入帳', 'Payout', '入金')} ${fundDistributionAccountLabel}` : ''}
                                             </div>
                                         </>
                                     )}
@@ -1064,8 +1175,11 @@
                             const premiumPaymentYears = Number.isFinite(premiumPaymentYearsRaw) && premiumPaymentYearsRaw > 0
                                 ? Math.floor(premiumPaymentYearsRaw)
                                 : 0;
-                            const premiumTermsPerYear = item.premiumFrequency === 'yearly' ? 1 : 12;
-                            const premiumTermCap = premiumPaymentYears > 0 ? premiumPaymentYears * premiumTermsPerYear : 0;
+                            const premiumTermsPerYear = resolvePremiumTermsPerYear(item.premiumFrequency);
+                            const premiumTotalTermsRaw = Number(item.insurancePremiumTotalTerms || 0);
+                            const premiumTermCap = premiumTotalTermsRaw > 0
+                                ? Math.floor(premiumTotalTermsRaw)
+                                : (premiumPaymentYears > 0 ? premiumPaymentYears * premiumTermsPerYear : 0);
                             const paidCountRaw = Math.max(manualPremiumPaidCount, autoPremiumPaidCount);
                             const effectivePremiumPaidCount = premiumTermCap > 0 ? Math.min(paidCountRaw, premiumTermCap) : paidCountRaw;
                             const isPolicyFullyPaid = premiumTermCap > 0 && effectivePremiumPaidCount >= premiumTermCap;
@@ -1075,8 +1189,9 @@
                             const isLifeInsurance = isInsuranceCategory && INSURANCE_LIFE_WEALTH_SUBTYPES.includes(item.subtype);
                             const isLinkedInsurance = isInsuranceCategory && ['投資型壽險', '投資/投資相連', '萬能壽險'].includes(item.subtype);
                             const currentPolicyYear = effectivePremiumPaidCount > 0
-                                ? (item.premiumFrequency === 'yearly' ? effectivePremiumPaidCount : (Math.floor((effectivePremiumPaidCount - 1) / 12) + 1))
+                                ? ((item.premiumFrequency === 'yearly' || item.premiumFrequency === 'single') ? effectivePremiumPaidCount : (Math.floor((effectivePremiumPaidCount - 1) / 12) + 1))
                                 : 0;
+                            const premiumCycleLabel = resolvePremiumCycleLabel(item.premiumFrequency, tByLang);
                             const distributionStartYear = normalizeDistributionStartPolicyYear({
                                 startDateKey: item.insuranceStartDate,
                                 rawValue: item.insuranceDistributionStartPolicyYear
@@ -1178,12 +1293,17 @@
                             const fixedCurrentDisplay = fromHKD(toHKD(Number(item.fixedCurrentValue || mktValOrig), item.currency), displayCurrency);
                             const isFixedDepositItem = isInvestCategory && item.subtype === '定期存款';
                             const isBankWealthItem = isInvestCategory && item.subtype === '銀行理財';
+                            const isFundInvestItem = isInvestCategory && item.subtype === '基金';
                             const fixedDepositMonths = Number(item.fixedDepositMonths || 0);
+                            const fixedDepositDays = Number(item.fixedDepositDays || 0);
+                            const fixedDepositTermMode = item.fixedDepositTermMode === 'days' ? 'days' : 'months';
                             const fixedDepositRate = Number(item.fixedDepositAnnualRate || 0);
                             const fixedDepositStartDate = item.fixedDepositStartDate || '';
                             const fixedDepositMaturityDate = resolveFixedDepositMaturityDateKey({
                                 startDateKey: fixedDepositStartDate,
-                                months: fixedDepositMonths
+                                months: fixedDepositMonths,
+                                days: fixedDepositDays,
+                                termMode: fixedDepositTermMode
                             });
                             const fixedDepositTargetLabel = liquidAssetLabelById?.[item.fixedDepositTargetLiquidAssetId] || '';
                             const bankWealthTermDays = Number(item.bankWealthTermDays || 0);
@@ -1203,6 +1323,10 @@
                                 if (bankWealthPayoutMode === 'manual') return Number(item.bankWealthMaturityManualAmount || 0);
                                 return Number(item.bankWealthGuaranteedMaturityAmount || item.currentPrice || 0);
                             })();
+                            const fundDistributionAmount = Number(item.fundDistributionAmount || 0);
+                            const fundDistributionFrequency = String(item.fundDistributionFrequency || 'monthly').toLowerCase() === 'yearly' ? 'yearly' : 'monthly';
+                            const fundDistributionStartDate = item.fundDistributionStartDate || '';
+                            const fundDistributionAccountLabel = liquidAssetLabelById?.[item.fundDistributionAccountId] || '';
                             const isPerfPositive = perf > 0;
                             const isPerfNegative = perf < 0;
                             const perfClass = isPerfPositive
@@ -1238,7 +1362,7 @@
                                         )}
                                         {isFixedDepositItem && (
                                             <div className="text-[10px] text-slate-500 font-medium mt-1 space-y-0.5">
-                                                <div>{tByLang('定期', 'Term', '預入期間')} {fixedDepositMonths || '--'} {tByLang('個月', 'months', 'か月')} · {tByLang('年利率', 'Rate', '年利率')} {fixedDepositRate.toFixed(2)}% {fixedDepositStartDate ? `· ${tByLang('起存', 'Start', '開始')} ${fixedDepositStartDate}` : ''}</div>
+                                                <div>{tByLang('定期', 'Term', '預入期間')} {fixedDepositTermMode === 'days' ? `${fixedDepositDays || '--'} ${tByLang('天', 'days', '日')}` : `${fixedDepositMonths || '--'} ${tByLang('個月', 'months', 'か月')}`} · {tByLang('年利率', 'Rate', '年利率')} {fixedDepositRate.toFixed(2)}% {fixedDepositStartDate ? `· ${tByLang('起存', 'Start', '開始')} ${fixedDepositStartDate}` : ''}</div>
                                                 <div>{tByLang('預計到期', 'Expected Maturity', '満期予定')} {fixedDepositMaturityDate || '--'}{fixedDepositTargetLabel ? ` · ${tByLang('到期入帳', 'Maturity Payout', '満期入金')} ${fixedDepositTargetLabel}` : ''}</div>
                                             </div>
                                         )}
@@ -1247,6 +1371,19 @@
                                                 <div>{tByLang('期限', 'Term', '期間')} {bankWealthTermDays || '--'} {tByLang('天', 'days', '日')} · {tByLang('保底/最高年化', 'Guaranteed/Max APR', '最低/最高年利')} {bankWealthGuaranteedRate.toFixed(2)}% / {bankWealthMaxRate.toFixed(2)}% {bankWealthStartDate ? `· ${tByLang('起息', 'Start', '起算')} ${bankWealthStartDate}` : ''}</div>
                                                 <div>{tByLang('到期', 'Maturity', '満期')} {bankWealthMaturityDate || '--'}{bankWealthTargetLabel ? ` · ${tByLang('到期入帳', 'Maturity Payout', '満期入金')} ${bankWealthTargetLabel}` : ''}</div>
                                                 <div>{tByLang('入帳模式', 'Payout Mode', '入金モード')} {bankWealthPayoutMode === 'max' ? tByLang('最高', 'Maximum', '最高') : (bankWealthPayoutMode === 'manual' ? tByLang('手動', 'Manual', '手動') : tByLang('保底', 'Guaranteed', '最低'))} · {tByLang('到期入帳額', 'Payout Amount', '入金額')} {formatAmount(bankWealthPayoutAmount)} {item.currency}</div>
+                                            </div>
+                                        )}
+                                        {isFundInvestItem && fundDistributionAmount > 0 && (
+                                            <div className="text-[10px] text-slate-500 font-medium mt-1 space-y-0.5">
+                                                <div>
+                                                    {tByLang('基金派息', 'Fund Distribution', 'ファンド分配')} {formatAmount(fundDistributionAmount)} {item.currency}
+                                                    {' · '}
+                                                    {fundDistributionFrequency === 'yearly' ? tByLang('每年', 'Yearly', '毎年') : tByLang('每月', 'Monthly', '毎月')}
+                                                </div>
+                                                <div>
+                                                    {tByLang('開始日', 'Start Date', '開始日')} {fundDistributionStartDate || '--'}
+                                                    {fundDistributionAccountLabel ? ` · ${tByLang('入帳', 'Payout', '入金')} ${fundDistributionAccountLabel}` : ''}
+                                                </div>
                                             </div>
                                         )}
                                         {isFixedItem && item.fixedNote && (
@@ -1310,16 +1447,22 @@
                                                 <div className={`font-bold ${insuranceAmountMainClass}`}>
                                                     {formatAmount(premiumAmount)} {item.currency}
                                                     <div className="text-[10px] text-slate-400">{tByLang(
-                                                        `/${item.premiumFrequency === 'yearly' ? '每年' : '每月'} · 扣款日 ${insuranceHasPaymentDay ? `${insurancePaymentDay} 號` : '--'}`,
-                                                        `/${item.premiumFrequency === 'yearly' ? 'yearly' : 'monthly'} · Debit Day ${insuranceHasPaymentDay ? `${insurancePaymentDay}` : '--'}`,
-                                                        `/${item.premiumFrequency === 'yearly' ? '毎年' : '毎月'} ・引落日 ${insuranceHasPaymentDay ? `${insurancePaymentDay}日` : '--'}`
+                                                        item.premiumFrequency === 'single'
+                                                            ? `/${tByLang('一次性', 'one-time', '単発')} · ${tByLang('扣款日', 'Debit Date', '引落日')} ${item.insuranceStartDate || '--'}`
+                                                            : `/${premiumCycleLabel} · 扣款日 ${insuranceHasPaymentDay ? `${insurancePaymentDay} 號` : '--'}`,
+                                                        item.premiumFrequency === 'single'
+                                                            ? `/${tByLang('one-time', 'one-time', 'one-time')} · ${tByLang('Debit Date', 'Debit Date', 'Debit Date')} ${item.insuranceStartDate || '--'}`
+                                                            : `/${premiumCycleLabel} · Debit Day ${insuranceHasPaymentDay ? `${insurancePaymentDay}` : '--'}`,
+                                                        item.premiumFrequency === 'single'
+                                                            ? `/${tByLang('単発', '単発', '単発')} ・${tByLang('引落日', '引落日', '引落日')} ${item.insuranceStartDate || '--'}`
+                                                            : `/${premiumCycleLabel} ・引落日 ${insuranceHasPaymentDay ? `${insurancePaymentDay}日` : '--'}`
                                                     )}</div>
                                                 </div>
                                             ) : isLifeInsurance ? (
                                                 hasPremiumPlan ? (
                                                     <div className={`font-bold ${insuranceAmountMainClass}`}>
                                                         {formatAmount(premiumAmount)} {item.currency}
-                                                        <div className="text-[10px] text-slate-400">/{item.premiumFrequency === 'yearly' ? tByLang('每年', 'yearly', '毎年') : tByLang('每月', 'monthly', '毎月')}{premiumPaymentYears > 0 ? tByLang(` · 繳費 ${premiumPaymentYears} 年`, ` · Pay ${premiumPaymentYears} yrs`, ` ・払込 ${premiumPaymentYears} 年`) : ''}</div>
+                                                        <div className="text-[10px] text-slate-400">/{premiumCycleLabel}{(item.premiumFrequency !== 'single' && premiumPaymentYears > 0) ? tByLang(` · 繳費 ${premiumPaymentYears} 年`, ` · Pay ${premiumPaymentYears} yrs`, ` ・払込 ${premiumPaymentYears} 年`) : ''}</div>
                                                     </div>
                                                 ) : (
                                                     <div className="font-bold text-slate-400">--</div>
@@ -1386,9 +1529,9 @@
                                                     <div className={`font-bold ${insuranceAmountMainClass}`}>{formatAmount(premiumAmount)} {item.currency}</div>
                                                     {!isPolicyFullyPaid ? (
                                                         <>
-                                                            <div className="text-[10px] text-slate-400">{tByLang('繳費週期', 'Premium Cycle', '払込周期')}：{item.premiumFrequency === 'yearly' ? tByLang('每年', 'yearly', '毎年') : tByLang('每月', 'monthly', '毎月')}</div>
-                                                            <div className="text-[10px] text-slate-400">{tByLang('扣款日', 'Debit Day', '引落日')}：{insuranceHasPaymentDay ? tByLang(`${insurancePaymentDay} 號`, `${insurancePaymentDay}`, `${insurancePaymentDay}日`) : '--'}</div>
-                                                            <div className="text-[10px] text-slate-400">{tByLang('下期扣款日', 'Next Debit Date', '次回引落日')}：{nextBillingDateKey || '--'}</div>
+                                                            <div className="text-[10px] text-slate-400">{tByLang('繳費週期', 'Premium Cycle', '払込周期')}：{premiumCycleLabel}</div>
+                                                            <div className="text-[10px] text-slate-400">{tByLang('扣款日', 'Debit Day', '引落日')}：{item.premiumFrequency === 'single' ? (item.insuranceStartDate || '--') : (insuranceHasPaymentDay ? tByLang(`${insurancePaymentDay} 號`, `${insurancePaymentDay}`, `${insurancePaymentDay}日`) : '--')}</div>
+                                                            <div className="text-[10px] text-slate-400">{tByLang('下期扣款日', 'Next Debit Date', '次回引落日')}：{item.premiumFrequency === 'single' ? '--' : (nextBillingDateKey || '--')}</div>
                                                         </>
                                                     ) : (
                                                         <div className="text-[10px]"><span className={PAID_OFF_BADGE_CLASS}>{tByLang('保費全部繳清', 'Policy fully paid', 'この保険は払込完了')}</span></div>
@@ -1607,6 +1750,7 @@
                                                 fromHKD={fromHKD}
                                                 displayCurrency={displayCurrency}
                                                 fundCurrencyOptions={fundCurrencyOptions}
+                                                liquidAssetLabelById={liquidAssetLabelById}
                                                 chartPalette={chartPalette}
                                                 accentColor={fundAccentColor}
                                                 premiumTotalAmount={premiumTotalOrig}

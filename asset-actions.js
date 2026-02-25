@@ -39,12 +39,16 @@
             const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
             const upperBound = endDate && endDate.getTime() < todayOnly.getTime() ? endDate : todayOnly;
             if (upperBound.getTime() < startDate.getTime()) return 0;
+            const normalizedFrequency = String(frequency || '').toLowerCase();
+            if (normalizedFrequency === 'single') {
+                return upperBound.getTime() >= startDate.getTime() ? 1 : 0;
+            }
 
             const normalizedDayRaw = Number(paymentDay);
             const normalizedDay = Number.isInteger(normalizedDayRaw) && normalizedDayRaw >= 1 && normalizedDayRaw <= 31
                 ? normalizedDayRaw
                 : startDate.getDate();
-            const isYearly = String(frequency || '').toLowerCase() === 'yearly';
+            const isYearly = normalizedFrequency === 'yearly';
 
             let year = startDate.getFullYear();
             let month = startDate.getMonth();
@@ -87,6 +91,8 @@
         const calculatePremiumEndDateKey = ({ startDateKey, paymentDay, frequency, totalTerms }) => {
             const startDate = parseDateKeySafe(startDateKey);
             if (!startDate) return '';
+            const normalizedFrequency = String(frequency || '').toLowerCase();
+            if (normalizedFrequency === 'single') return toDateKeySafe(startDate);
             const terms = Number(totalTerms || 0);
             if (!Number.isInteger(terms) || terms <= 0) return '';
 
@@ -94,7 +100,7 @@
             const normalizedDay = Number.isInteger(normalizedDayRaw) && normalizedDayRaw >= 1 && normalizedDayRaw <= 31
                 ? normalizedDayRaw
                 : startDate.getDate();
-            const isYearly = String(frequency || '').toLowerCase() === 'yearly';
+            const isYearly = normalizedFrequency === 'yearly';
 
             let year = startDate.getFullYear();
             let month = startDate.getMonth();
@@ -157,7 +163,7 @@
         let fixedDepositPayload = {};
         if (isFixedDepositForm) {
             if (!fixedDepositMetrics) {
-                return { ok: false, error: '請輸入有效的定期存款資料（本金、年利率、期數）' };
+                return { ok: false, error: '請輸入有效的定期存款資料（本金、年利率、期限）' };
             }
             quantity = 1;
             costBasis = fixedDepositMetrics.principal;
@@ -165,7 +171,9 @@
             fixedDepositPayload = {
                 fixedDepositPrincipal: fixedDepositMetrics.principal,
                 fixedDepositAnnualRate: fixedDepositMetrics.annualInterestRate,
+                fixedDepositTermMode: fixedDepositMetrics.termMode || 'months',
                 fixedDepositMonths: fixedDepositMetrics.months,
+                fixedDepositDays: fixedDepositMetrics.days,
                 fixedDepositStartDate: formData.fixedDepositStartDate || '',
                 fixedDepositTargetLiquidAssetId: formData.fixedDepositTargetLiquidAssetId || '',
                 fixedDepositInterestAmount: fixedDepositMetrics.interestAmount,
@@ -214,13 +222,17 @@
                 endDateKey: formData.insuranceEndDate,
                 fallbackCount: formData.premiumPaidCount
             });
-            const isYearlyPremium = String(formData.premiumFrequency || '').toLowerCase() === 'yearly';
-            const premiumTermsPerYear = isYearlyPremium ? 1 : 12;
+            const normalizedPremiumFrequency = String(formData.premiumFrequency || '').toLowerCase();
+            const isSinglePremium = normalizedPremiumFrequency === 'single';
+            const isYearlyPremium = normalizedPremiumFrequency === 'yearly';
+            const premiumTermsPerYear = (isSinglePremium || isYearlyPremium) ? 1 : 12;
             const premiumPaymentYearsRaw = Number(formData.insurancePremiumPaymentYears || 0);
             const premiumPaymentYears = Number.isFinite(premiumPaymentYearsRaw) && premiumPaymentYearsRaw > 0
                 ? Math.floor(premiumPaymentYearsRaw)
                 : 0;
-            const premiumTotalTerms = premiumPaymentYears > 0 ? premiumPaymentYears * premiumTermsPerYear : 0;
+            const premiumTotalTerms = isSinglePremium
+                ? 1
+                : (premiumPaymentYears > 0 ? premiumPaymentYears * premiumTermsPerYear : 0);
             const effectivePremiumPaidCount = premiumTotalTerms > 0
                 ? Math.min(autoPremiumPaidCount, premiumTotalTerms)
                 : autoPremiumPaidCount;
@@ -299,7 +311,7 @@
                     insuranceTotalDistributedAmount: totalDistributedAmount,
                     insuranceAccumulationBalance: distributionMode === 'accumulate' ? accumulationBalance : 0,
                     insurancePolicyValue: resolvedPolicyValue > 0 ? resolvedPolicyValue : '',
-                    insurancePremiumPaymentYears: premiumPaymentYears > 0 ? premiumPaymentYears : '',
+                    insurancePremiumPaymentYears: (!isSinglePremium && premiumPaymentYears > 0) ? premiumPaymentYears : '',
                     insuranceDistributionStartPolicyYear: isInvestmentLinkedLifeSubtype ? '' : (formData.insuranceDistributionStartPolicyYear || ''),
                     insuranceAnnualDistributionAmount: isInvestmentLinkedLifeSubtype ? '' : (formData.insuranceAnnualDistributionAmount || ''),
                     insuranceDistributionMode: isInvestmentLinkedLifeSubtype ? 'cash' : distributionMode,

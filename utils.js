@@ -379,20 +379,30 @@
         };
     };
 
-    const calculateFixedDepositMetrics = ({ principal, annualInterestRate, months }) => {
+    const calculateFixedDepositMetrics = ({ principal, annualInterestRate, months, days, termMode }) => {
         const principalValue = Number(principal) || 0;
         const annualRate = Number(annualInterestRate) || 0;
+        const normalizedMode = termMode === 'days' ? 'days' : 'months';
         const termMonths = Number(months) || 0;
+        const termDays = Number(days) || 0;
 
-        if (principalValue <= 0 || termMonths <= 0 || annualRate < 0) return null;
+        if (principalValue <= 0 || annualRate < 0) return null;
 
-        const maturityAmount = principalValue * (1 + (annualRate / 100) * (termMonths / 12));
+        const termYears = normalizedMode === 'days'
+            ? (termDays / 365)
+            : (termMonths / 12);
+
+        if (!Number.isFinite(termYears) || termYears <= 0) return null;
+
+        const maturityAmount = principalValue * (1 + (annualRate / 100) * termYears);
         const interestAmount = maturityAmount - principalValue;
 
         return {
             principal: principalValue,
             annualInterestRate: annualRate,
+            termMode: normalizedMode,
             months: termMonths,
+            days: termDays,
             maturityAmount,
             interestAmount
         };

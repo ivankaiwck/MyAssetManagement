@@ -462,6 +462,10 @@
                 insuranceSupplementaryBenefitDeductible: '',
                 insuranceInvestmentFundItems: '',
                 insuranceInvestmentStrategyNote: '',
+                insuranceInvestmentDistributionAmount: '',
+                insuranceInvestmentDistributionFrequency: 'monthly',
+                insuranceInvestmentDistributionStartDate: '',
+                insuranceInvestmentDistributionAccountId: '',
                 premiumFrequency: 'monthly',
                 premiumPaidCount: '',
                 insuranceProvider: '',
@@ -524,9 +528,15 @@
                 fixedNote: '',
                 fixedDepositPrincipal: '',
                 fixedDepositAnnualRate: '',
+                fixedDepositTermMode: 'months',
                 fixedDepositMonths: '',
+                fixedDepositDays: '',
                 fixedDepositStartDate: '',
                 fixedDepositTargetLiquidAssetId: '',
+                fundDistributionAmount: '',
+                fundDistributionFrequency: 'monthly',
+                fundDistributionStartDate: '',
+                fundDistributionAccountId: '',
                 bankWealthPrincipal: '',
                 bankWealthGuaranteedAnnualRate: '',
                 bankWealthMaxAnnualRate: '',
@@ -550,6 +560,10 @@
                 insuranceSupplementaryBenefitDeductible: '',
                 insuranceInvestmentFundItems: '',
                 insuranceInvestmentStrategyNote: '',
+                insuranceInvestmentDistributionAmount: '',
+                insuranceInvestmentDistributionFrequency: 'monthly',
+                insuranceInvestmentDistributionStartDate: '',
+                insuranceInvestmentDistributionAccountId: '',
                 premiumPaidCount: '',
                 premiumFrequency: 'monthly',
                 insuranceProvider: '',
@@ -612,9 +626,15 @@
                 fixedNote: '',
                 fixedDepositPrincipal: '',
                 fixedDepositAnnualRate: '',
+                fixedDepositTermMode: 'months',
                 fixedDepositMonths: '',
+                fixedDepositDays: '',
                 fixedDepositStartDate: '',
                 fixedDepositTargetLiquidAssetId: '',
+                fundDistributionAmount: '',
+                fundDistributionFrequency: 'monthly',
+                fundDistributionStartDate: '',
+                fundDistributionAccountId: '',
                 bankWealthPrincipal: '',
                 bankWealthGuaranteedAnnualRate: '',
                 bankWealthMaxAnnualRate: '',
@@ -960,7 +980,9 @@
             const fixedDepositMetrics = isFixedDepositForm ? calculateFixedDepositMetrics({
                 principal: formData.fixedDepositPrincipal,
                 annualInterestRate: formData.fixedDepositAnnualRate,
-                months: formData.fixedDepositMonths
+                months: formData.fixedDepositMonths,
+                days: formData.fixedDepositDays,
+                termMode: formData.fixedDepositTermMode
             }) : null;
             const bankWealthMetrics = isBankWealthForm ? calculateBankWealthMetrics({
                 principal: formData.bankWealthPrincipal,
@@ -1807,7 +1829,12 @@
                         balance: parts[4] || '',
                         units: parts[5] || '',
                         unitPrice: parts[6] || '',
-                        averagePrice: parts[7] || ''
+                        averagePrice: parts[7] || '',
+                        distributionAmount: parts[8] || '',
+                        distributionFrequency: parts[9] || 'monthly',
+                        distributionStartDate: parts[10] || '',
+                        distributionAccountId: parts[11] || '',
+                        fundRowId: parts[12] || ''
                     };
                 });
             };
@@ -1822,8 +1849,13 @@
                     const units = String(row.units || '').trim();
                     const unitPrice = String(row.unitPrice || '').trim();
                     const averagePrice = String(row.averagePrice || '').trim();
-                    if (!allocationPercent && !investmentOption && !codeCurrency && !profitLossPercent && !balance && !units && !unitPrice && !averagePrice) return '';
-                    return [allocationPercent, investmentOption, codeCurrency, profitLossPercent, balance, units, unitPrice, averagePrice].join('｜');
+                    const distributionAmount = String(row.distributionAmount || '').trim();
+                    const distributionFrequency = String(row.distributionFrequency || 'monthly').trim().toLowerCase() === 'yearly' ? 'yearly' : 'monthly';
+                    const distributionStartDate = String(row.distributionStartDate || '').trim();
+                    const distributionAccountId = String(row.distributionAccountId || '').trim();
+                    const fundRowId = String(row.fundRowId || '').trim();
+                    if (!allocationPercent && !investmentOption && !codeCurrency && !profitLossPercent && !balance && !units && !unitPrice && !averagePrice && !distributionAmount && !distributionStartDate && !distributionAccountId) return '';
+                    return [allocationPercent, investmentOption, codeCurrency, profitLossPercent, balance, units, unitPrice, averagePrice, distributionAmount, distributionFrequency, distributionStartDate, distributionAccountId, fundRowId].join('｜');
                 })
                 .filter(Boolean)
                 .join('\n');
@@ -1838,6 +1870,75 @@
                 const parsed = Number(value || 0);
                 if (!Number.isFinite(parsed)) return '';
                 return String(Number(parsed.toFixed(6)));
+            };
+
+            const INSURANCE_FUND_ROW_DISTRIBUTION_SOURCE_PREFIX = 'INSURANCE_INVESTMENT_FUND_ROW_DISTRIBUTION_AUTO';
+            const createFundRowId = () => `fund-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+            const normalizeFundDistributionFrequency = (value) => (String(value || '').toLowerCase() === 'yearly' ? 'yearly' : 'monthly');
+
+            const buildInsuranceFundRowDistributionEntries = (sourceAsset, existingEntries = []) => {
+                if (!sourceAsset || sourceAsset.category !== 'INSURANCE') return [];
+                if (!['投資型壽險', '投資/投資相連'].includes(sourceAsset.subtype)) return [];
+                const rows = parseInsuranceInvestmentFundRows(sourceAsset.insuranceInvestmentFundItems || '');
+                if (!rows.length) return [];
+
+                const existingEntryIdBySource = {};
+                (Array.isArray(existingEntries) ? existingEntries : []).forEach(entry => {
+                    if (!entry || entry.linkedAssetId !== sourceAsset.id) return;
+                    const linkedSource = String(entry.linkedSource || '');
+                    if (!linkedSource.startsWith(`${INSURANCE_FUND_ROW_DISTRIBUTION_SOURCE_PREFIX}:`)) return;
+                    existingEntryIdBySource[linkedSource] = entry.id || '';
+                });
+
+                return rows
+                    .map((row, index) => {
+                        const distributionAmount = Number(row.distributionAmount || 0);
+                        if (!Number.isFinite(distributionAmount) || distributionAmount <= 0) return null;
+
+                        const accountId = String(row.distributionAccountId || '').trim();
+                        if (!accountId) return null;
+
+                        const startDateRaw = String(row.distributionStartDate || '').trim();
+                        const parsedStartDate = parseDateKey(startDateRaw || sourceAsset.insuranceStartDate || '');
+                        if (!parsedStartDate) return null;
+
+                        const rowId = String(row.fundRowId || '').trim();
+                        if (!rowId) return null;
+
+                        const linkedSource = `${INSURANCE_FUND_ROW_DISTRIBUTION_SOURCE_PREFIX}:${rowId}`;
+                        const selectedLiquidAsset = liquidAssetOptions.find(option => option.id === accountId);
+                        const startDate = toDateKey(new Date(parsedStartDate.getFullYear(), parsedStartDate.getMonth(), parsedStartDate.getDate()));
+                        const monthday = parsedStartDate.getDate();
+                        const frequency = normalizeFundDistributionFrequency(row.distributionFrequency) === 'yearly' ? 'YEARLY' : 'MONTHLY';
+                        const fundName = (row.investmentOption || '').trim() || `基金${index + 1}`;
+                        const titlePrefix = (sourceAsset.name || '').trim() || tByLang('投資型保單', 'Investment-linked Policy', '投資型保険');
+                        return {
+                            id: existingEntryIdBySource[linkedSource] || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                            title: `${titlePrefix} ${fundName} ${tByLang('派息', 'Distribution', '分配')}`,
+                            account: selectedLiquidAsset?.account || sourceAsset.account || '',
+                            category: getDefaultCashflowCategory('INCOME'),
+                            note: [
+                                tByLang('基金子項目派息（自動）', 'Fund Item Distribution (Auto)', 'ファンド項目分配（自動）'),
+                                fundName,
+                                (sourceAsset.insurancePolicyNumber || '').trim()
+                            ].filter(Boolean).join('｜'),
+                            type: 'INCOME',
+                            amount: distributionAmount,
+                            currency: sourceAsset.currency || 'HKD',
+                            startDate,
+                            oneTimeDates: [],
+                            endDate: sourceAsset.insuranceEndDate || '',
+                            scheduleType: 'RECURRING',
+                            frequency,
+                            weekday: 0,
+                            monthday,
+                            payday: String(monthday),
+                            targetLiquidAssetId: accountId,
+                            linkedAssetId: sourceAsset.id,
+                            linkedSource
+                        };
+                    })
+                    .filter(Boolean);
             };
 
             const normalizeComputedInvestmentRows = (rows) => {
@@ -1870,6 +1971,7 @@
             };
 
             const updateInsuranceInvestmentFundItems = (assetId, updater) => {
+                let updatedAsset = null;
                 setAssets(prevAssets => prevAssets.map(asset => {
                     if (!asset || asset.id !== assetId) return asset;
                     if (asset.category !== 'INSURANCE') return asset;
@@ -1877,10 +1979,15 @@
                     const nextRowsRaw = typeof updater === 'function' ? updater(rows) : rows;
                     const nextRowsSource = Array.isArray(nextRowsRaw) && nextRowsRaw.length > 0
                         ? nextRowsRaw
-                        : [{ allocationPercent: '', investmentOption: '', codeCurrency: '', profitLossPercent: '', balance: '', units: '', unitPrice: '', averagePrice: '' }];
+                        : [{ allocationPercent: '', investmentOption: '', codeCurrency: '', profitLossPercent: '', balance: '', units: '', unitPrice: '', averagePrice: '', distributionAmount: '', distributionFrequency: 'monthly', distributionStartDate: '', distributionAccountId: '', fundRowId: createFundRowId() }];
                     const nextRows = normalizeComputedInvestmentRows(nextRowsSource);
+                    const nextRowsWithMeta = nextRows.map(row => ({
+                        ...row,
+                        distributionFrequency: normalizeFundDistributionFrequency(row.distributionFrequency),
+                        fundRowId: String(row.fundRowId || '').trim() || createFundRowId()
+                    }));
 
-                    const nextPolicyValue = nextRows.reduce((sum, row) => {
+                    const nextPolicyValue = nextRowsWithMeta.reduce((sum, row) => {
                         const balance = parsePositiveNumberLoose(row.balance);
                         const units = parsePositiveNumberLoose(row.units);
                         const unitPrice = parsePositiveNumberLoose(row.unitPrice);
@@ -1889,14 +1996,26 @@
                         return sum;
                     }, 0);
 
-                    return {
+                    updatedAsset = {
                         ...asset,
-                        insuranceInvestmentFundItems: serializeInsuranceInvestmentFundRows(nextRows),
+                        insuranceInvestmentFundItems: serializeInsuranceInvestmentFundRows(nextRowsWithMeta),
                         insurancePolicyValue: Number(nextPolicyValue.toFixed(6)),
                         currentPrice: Number(nextPolicyValue.toFixed(6)),
                         quantity: 1
                     };
+                    return updatedAsset;
                 }));
+
+                if (updatedAsset) {
+                    setCashflowEntries(prevEntries => {
+                        const remaining = prevEntries.filter(entry => !(
+                            entry.linkedAssetId === assetId
+                            && String(entry.linkedSource || '').startsWith(`${INSURANCE_FUND_ROW_DISTRIBUTION_SOURCE_PREFIX}:`)
+                        ));
+                        const nextRowDistributionEntries = buildInsuranceFundRowDistributionEntries(updatedAsset, prevEntries);
+                        return sanitizeCashflowEntries([...remaining, ...nextRowDistributionEntries]);
+                    });
+                }
             };
 
             const handleInsuranceFundRowFieldChange = (assetId, rowIndex, field, value) => {
@@ -1908,7 +2027,7 @@
             const handleInsuranceFundAddRow = (assetId) => {
                 updateInsuranceInvestmentFundItems(assetId, rows => ([
                     ...rows,
-                    { allocationPercent: '', investmentOption: '', codeCurrency: '', profitLossPercent: '', balance: '', units: '', unitPrice: '', averagePrice: '' }
+                    { allocationPercent: '', investmentOption: '', codeCurrency: '', profitLossPercent: '', balance: '', units: '', unitPrice: '', averagePrice: '', distributionAmount: '', distributionFrequency: 'monthly', distributionStartDate: '', distributionAccountId: '', fundRowId: createFundRowId() }
                 ]));
             };
 
@@ -1921,7 +2040,12 @@
                     balance: String(rowData?.balance || ''),
                     units: String(rowData?.units || ''),
                     unitPrice: String(rowData?.unitPrice || ''),
-                    averagePrice: String(rowData?.averagePrice || '')
+                    averagePrice: String(rowData?.averagePrice || ''),
+                    distributionAmount: String(rowData?.distributionAmount || ''),
+                    distributionFrequency: normalizeFundDistributionFrequency(rowData?.distributionFrequency || 'monthly'),
+                    distributionStartDate: String(rowData?.distributionStartDate || ''),
+                    distributionAccountId: String(rowData?.distributionAccountId || ''),
+                    fundRowId: String(rowData?.fundRowId || createFundRowId())
                 };
                 updateInsuranceInvestmentFundItems(assetId, rows => ([...rows, nextRow]));
             };
@@ -1953,7 +2077,7 @@
 
             const handleInsuranceFundClearRows = (assetId) => {
                 updateInsuranceInvestmentFundItems(assetId, () => ([
-                    { allocationPercent: '', investmentOption: '', codeCurrency: '', profitLossPercent: '', balance: '', units: '', unitPrice: '', averagePrice: '' }
+                    { allocationPercent: '', investmentOption: '', codeCurrency: '', profitLossPercent: '', balance: '', units: '', unitPrice: '', averagePrice: '', distributionAmount: '', distributionFrequency: 'monthly', distributionStartDate: '', distributionAccountId: '', fundRowId: createFundRowId() }
                 ]));
             };
 
@@ -2967,7 +3091,12 @@
 
             const handleDelete = (id) => {
                 const linkedInsuranceRuleCount = cashflowEntries.filter(entry => (
-                    (entry.linkedSource === 'INSURANCE_AUTO' || entry.linkedSource === 'INSURANCE_DISTRIBUTION_AUTO')
+                    (
+                        entry.linkedSource === 'INSURANCE_AUTO'
+                        || entry.linkedSource === 'INSURANCE_DISTRIBUTION_AUTO'
+                        || entry.linkedSource === 'INSURANCE_INVESTMENT_DISTRIBUTION_AUTO'
+                        || String(entry.linkedSource || '').startsWith('INSURANCE_INVESTMENT_FUND_ROW_DISTRIBUTION_AUTO:')
+                    )
                     && entry.linkedAssetId === id
                 )).length;
                 const linkedFixedDepositRuleCount = cashflowEntries.filter(entry => (
@@ -2978,7 +3107,11 @@
                     entry.linkedSource === 'BANK_WEALTH_MATURITY_AUTO'
                     && entry.linkedAssetId === id
                 )).length;
-                const linkedAutoRuleCount = linkedInsuranceRuleCount + linkedFixedDepositRuleCount + linkedBankWealthRuleCount;
+                const linkedFundDistributionRuleCount = cashflowEntries.filter(entry => (
+                    entry.linkedSource === 'INVEST_FUND_DISTRIBUTION_AUTO'
+                    && entry.linkedAssetId === id
+                )).length;
+                const linkedAutoRuleCount = linkedInsuranceRuleCount + linkedFixedDepositRuleCount + linkedBankWealthRuleCount + linkedFundDistributionRuleCount;
                 const confirmMessage = linkedAutoRuleCount > 0
                     ? tByLang(
                         `確定要刪除此資產嗎？\n將一併刪除 ${linkedAutoRuleCount} 條自動現金流規則。`,
@@ -2990,7 +3123,15 @@
                 if (!result.ok) return;
                 setAssets(result.nextAssets);
                 setCashflowEntries(prev => prev.filter(entry => !(
-                    (entry.linkedSource === 'INSURANCE_AUTO' || entry.linkedSource === 'INSURANCE_DISTRIBUTION_AUTO' || entry.linkedSource === 'FIXED_DEPOSIT_MATURITY_AUTO' || entry.linkedSource === 'BANK_WEALTH_MATURITY_AUTO')
+                    (
+                        entry.linkedSource === 'INSURANCE_AUTO'
+                        || entry.linkedSource === 'INSURANCE_DISTRIBUTION_AUTO'
+                        || entry.linkedSource === 'INSURANCE_INVESTMENT_DISTRIBUTION_AUTO'
+                        || String(entry.linkedSource || '').startsWith('INSURANCE_INVESTMENT_FUND_ROW_DISTRIBUTION_AUTO:')
+                        || entry.linkedSource === 'INVEST_FUND_DISTRIBUTION_AUTO'
+                        || entry.linkedSource === 'FIXED_DEPOSIT_MATURITY_AUTO'
+                        || entry.linkedSource === 'BANK_WEALTH_MATURITY_AUTO'
+                    )
                     && entry.linkedAssetId === id
                 )));
                 setIsModalOpen(false);
@@ -3002,6 +3143,7 @@
                 const wasAutoInsurance = Boolean(previousAsset && previousAsset.category === 'INSURANCE');
                 const wasAutoFixedDeposit = Boolean(previousAsset && previousAsset.category === 'INVEST' && previousAsset.subtype === '定期存款');
                 const wasAutoBankWealth = Boolean(previousAsset && previousAsset.category === 'INVEST' && previousAsset.subtype === '銀行理財');
+                const wasAutoFundDistribution = Boolean(previousAsset && previousAsset.category === 'INVEST' && previousAsset.subtype === '基金');
                 const normalizeDistributionStartPolicyYear = (startDateKey, rawValue) => {
                     const parsedRaw = Number(rawValue || 0);
                     if (!Number.isFinite(parsedRaw) || parsedRaw <= 0) return 0;
@@ -3027,6 +3169,7 @@
                 const buildInsuranceCashflowEntry = (assetId, sourceAsset, existingCashflowId = '') => {
                     const selectedLiquidAsset = liquidAssetOptions.find(option => option.id === sourceAsset.insurancePaymentAccountId);
                     const start = parseDateKey(sourceAsset.insuranceStartDate) || new Date();
+                    const isSinglePremium = sourceAsset.premiumFrequency === 'single';
                     const configuredPaymentDayRaw = Number(sourceAsset.insurancePaymentDay);
                     const configuredPaymentDay = Number.isInteger(configuredPaymentDayRaw) && configuredPaymentDayRaw >= 1 && configuredPaymentDayRaw <= 31
                         ? configuredPaymentDayRaw
@@ -3048,10 +3191,10 @@
                         amount: Number(sourceAsset.premiumAmount) || 0,
                         currency: sourceAsset.currency || 'HKD',
                         startDate: adjustedStartDate,
-                        oneTimeDates: [],
-                        endDate: sourceAsset.insuranceEndDate || '',
-                        scheduleType: 'RECURRING',
-                        frequency: sourceAsset.premiumFrequency === 'yearly' ? 'YEARLY' : 'MONTHLY',
+                        oneTimeDates: isSinglePremium ? [adjustedStartDate] : [],
+                        endDate: isSinglePremium ? '' : (sourceAsset.insuranceEndDate || ''),
+                        scheduleType: isSinglePremium ? 'ONE_TIME' : 'RECURRING',
+                        frequency: isSinglePremium ? 'ONE_TIME' : (sourceAsset.premiumFrequency === 'yearly' ? 'YEARLY' : 'MONTHLY'),
                         weekday: 0,
                         monthday: configuredPaymentDay,
                         payday: String(configuredPaymentDay),
@@ -3099,8 +3242,81 @@
                     };
                 };
 
+                const buildInsuranceInvestmentDistributionCashflowEntry = (assetId, sourceAsset, existingCashflowId = '') => {
+                    const selectedLiquidAsset = liquidAssetOptions.find(option => option.id === sourceAsset.insuranceInvestmentDistributionAccountId);
+                    const start = parseDateKey(sourceAsset.insuranceInvestmentDistributionStartDate)
+                        || parseDateKey(sourceAsset.insuranceStartDate)
+                        || new Date();
+                    const distributionDay = start.getDate();
+                    const frequency = sourceAsset.insuranceInvestmentDistributionFrequency === 'yearly' ? 'YEARLY' : 'MONTHLY';
+                    const adjustedStartDate = toDateKey(new Date(start.getFullYear(), start.getMonth(), distributionDay));
+                    return {
+                        id: existingCashflowId || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                        title: (sourceAsset.name || '').trim() ? `${(sourceAsset.name || '').trim()} 基金派息` : '投資型保單基金派息',
+                        account: selectedLiquidAsset?.account || sourceAsset.account || '',
+                        category: getDefaultCashflowCategory('INCOME'),
+                        note: [
+                            tByLang('投資型保單基金派息（自動）', 'Investment-linked Fund Distribution (Auto)', '投資型保険ファンド分配（自動）'),
+                            (sourceAsset.insurancePolicyNumber || '').trim(),
+                            (sourceAsset.insuranceProvider || '').trim()
+                        ].filter(Boolean).join('｜'),
+                        type: 'INCOME',
+                        amount: Number(sourceAsset.insuranceInvestmentDistributionAmount || 0),
+                        currency: sourceAsset.currency || 'HKD',
+                        startDate: adjustedStartDate,
+                        oneTimeDates: [],
+                        endDate: sourceAsset.insuranceEndDate || '',
+                        scheduleType: 'RECURRING',
+                        frequency,
+                        weekday: 0,
+                        monthday: distributionDay,
+                        payday: String(distributionDay),
+                        targetLiquidAssetId: sourceAsset.insuranceInvestmentDistributionAccountId,
+                        linkedAssetId: assetId,
+                        linkedSource: 'INSURANCE_INVESTMENT_DISTRIBUTION_AUTO'
+                    };
+                };
+
+                const buildFundDistributionCashflowEntry = (assetId, sourceAsset, existingCashflowId = '') => {
+                    const selectedLiquidAsset = liquidAssetOptions.find(option => option.id === sourceAsset.fundDistributionAccountId);
+                    const start = parseDateKey(sourceAsset.fundDistributionStartDate) || new Date();
+                    const distributionDay = start.getDate();
+                    const frequency = sourceAsset.fundDistributionFrequency === 'yearly' ? 'YEARLY' : 'MONTHLY';
+                    const adjustedStartDate = toDateKey(new Date(start.getFullYear(), start.getMonth(), distributionDay));
+                    return {
+                        id: existingCashflowId || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                        title: (sourceAsset.name || '').trim() ? `${(sourceAsset.name || '').trim()} 派息` : '基金派息',
+                        account: selectedLiquidAsset?.account || sourceAsset.account || '',
+                        category: getDefaultCashflowCategory('INCOME'),
+                        note: [
+                            tByLang('基金派息（自動）', 'Fund Distribution (Auto)', 'ファンド分配（自動）'),
+                            (sourceAsset.symbol || '').trim()
+                        ].filter(Boolean).join('｜'),
+                        type: 'INCOME',
+                        amount: Number(sourceAsset.fundDistributionAmount || 0),
+                        currency: sourceAsset.currency || 'HKD',
+                        startDate: adjustedStartDate,
+                        oneTimeDates: [],
+                        endDate: '',
+                        scheduleType: 'RECURRING',
+                        frequency,
+                        weekday: 0,
+                        monthday: distributionDay,
+                        payday: String(distributionDay),
+                        targetLiquidAssetId: sourceAsset.fundDistributionAccountId,
+                        linkedAssetId: assetId,
+                        linkedSource: 'INVEST_FUND_DISTRIBUTION_AUTO'
+                    };
+                };
+
                 const resolveFixedDepositMaturityDateKey = (sourceAsset) => {
                     const startDate = parseDateKey(sourceAsset.fixedDepositStartDate) || new Date();
+                    const termMode = sourceAsset.fixedDepositTermMode === 'days' ? 'days' : 'months';
+                    if (termMode === 'days') {
+                        const termDays = Math.max(1, Math.floor(Number(sourceAsset.fixedDepositDays || 0) || 0));
+                        const maturity = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + termDays);
+                        return toDateKey(maturity);
+                    }
                     const termMonths = Math.max(1, Math.floor(Number(sourceAsset.fixedDepositMonths || 0) || 0));
                     const targetMonthDate = new Date(startDate.getFullYear(), startDate.getMonth() + termMonths, 1);
                     const daysInTargetMonth = new Date(targetMonthDate.getFullYear(), targetMonthDate.getMonth() + 1, 0).getDate();
@@ -3202,6 +3418,25 @@
                     && formData.insurancePaymentAccountId
                     && formData.insuranceStartDate
                 );
+                const shouldEnableInsuranceInvestmentDistributionRule = Boolean(
+                    needsPremium
+                    && isLifeWealthInsuranceForm
+                    && ['投資型壽險', '投資/投資相連'].includes(formData.subtype)
+                    && (Number(formData.insuranceInvestmentDistributionAmount) || 0) > 0
+                    && formData.insuranceInvestmentDistributionAccountId
+                    && (formData.insuranceInvestmentDistributionStartDate || formData.insuranceStartDate)
+                );
+                const shouldEnableFundDistributionRule = Boolean(
+                    isFundForm
+                    && (Number(formData.fundDistributionAmount) || 0) > 0
+                    && formData.fundDistributionAccountId
+                    && formData.fundDistributionStartDate
+                );
+                const shouldSyncInsuranceFundRowDistributionRules = Boolean(
+                    needsPremium
+                    && isLifeWealthInsuranceForm
+                    && ['投資型壽險', '投資/投資相連'].includes(formData.subtype)
+                );
                 const resolvedPremiumAmount = (() => {
                     const basePremiumAmount = Number(formData.insuranceBasePremiumAmount || 0);
                     const supplementaryPremiumAmount = Number(formData.insuranceSupplementaryPremiumAmount || 0);
@@ -3267,13 +3502,38 @@
                         showSubmissionErrorAlert(tByLang('保險請輸入有效的保單生效日', 'Please enter a valid policy effective date.', '有効な保険開始日を入力してください。'));
                         return;
                     }
-                    const paymentDay = Number(formData.insurancePaymentDay);
-                    if (!Number.isInteger(paymentDay) || paymentDay < 1 || paymentDay > 31) {
-                        showSubmissionErrorAlert(tByLang('保險請設定固定扣款日（1-31）', 'Please set a fixed debit day (1-31).', '固定引落日（1〜31）を設定してください。'));
-                        return;
+                    const isSinglePremium = formData.premiumFrequency === 'single';
+                    if (!isSinglePremium) {
+                        const paymentDay = Number(formData.insurancePaymentDay);
+                        if (!Number.isInteger(paymentDay) || paymentDay < 1 || paymentDay > 31) {
+                            showSubmissionErrorAlert(tByLang('保險請設定固定扣款日（1-31）', 'Please set a fixed debit day (1-31).', '固定引落日（1〜31）を設定してください。'));
+                            return;
+                        }
                     }
                     if (resolvedPremiumAmount <= 0) {
                         showSubmissionErrorAlert(tByLang('保險請輸入有效的每期保費', 'Please enter a valid premium per term.', '有効な1期あたり保険料を入力してください。'));
+                        return;
+                    }
+                    if (['投資型壽險', '投資/投資相連'].includes(formData.subtype) && (Number(formData.insuranceInvestmentDistributionAmount) || 0) > 0) {
+                        if (!formData.insuranceInvestmentDistributionAccountId) {
+                            showSubmissionErrorAlert(tByLang('請選擇投資型保單基金派息入帳帳戶', 'Please select a payout account for investment-linked fund distribution.', '投資型保険ファンド分配の入金口座を選択してください。'));
+                            return;
+                        }
+                        const distributionStartDate = formData.insuranceInvestmentDistributionStartDate || formData.insuranceStartDate;
+                        if (!distributionStartDate || !parseDateKey(distributionStartDate)) {
+                            showSubmissionErrorAlert(tByLang('請輸入有效的投資型保單基金派息開始日', 'Please enter a valid start date for investment-linked fund distribution.', '投資型保険ファンド分配の有効な開始日を入力してください。'));
+                            return;
+                        }
+                    }
+                }
+
+                if (isFundForm && (Number(formData.fundDistributionAmount) || 0) > 0) {
+                    if (!formData.fundDistributionAccountId) {
+                        showSubmissionErrorAlert(tByLang('請選擇基金派息入帳帳戶', 'Please select a payout account for fund distribution.', 'ファンド分配の入金口座を選択してください。'));
+                        return;
+                    }
+                    if (!formData.fundDistributionStartDate || !parseDateKey(formData.fundDistributionStartDate)) {
+                        showSubmissionErrorAlert(tByLang('請輸入有效的基金派息開始日', 'Please enter a valid start date for fund distribution.', 'ファンド分配の有効な開始日を入力してください。'));
                         return;
                     }
                 }
@@ -3285,6 +3545,15 @@
                     }
                     if (!formData.fixedDepositStartDate || !parseDateKey(formData.fixedDepositStartDate)) {
                         showSubmissionErrorAlert(tByLang('定期存款請輸入有效的起存日', 'Please enter a valid start date for fixed deposit.', '定期預金の有効な開始日を入力してください。'));
+                        return;
+                    }
+                    if ((formData.fixedDepositTermMode || 'months') === 'days') {
+                        if ((Number(formData.fixedDepositDays || 0) || 0) <= 0) {
+                            showSubmissionErrorAlert(tByLang('定期存款請輸入有效的存款日數', 'Please enter valid term days for fixed deposit.', '定期預金の有効な日数を入力してください。'));
+                            return;
+                        }
+                    } else if ((Number(formData.fixedDepositMonths || 0) || 0) <= 0) {
+                        showSubmissionErrorAlert(tByLang('定期存款請輸入有效的存期（月）', 'Please enter valid term months for fixed deposit.', '定期預金の有効な月数を入力してください。'));
                         return;
                     }
                 }
@@ -3361,6 +3630,12 @@
                 }
 
                 let data = submission.data;
+                if ((Number(data.insuranceInvestmentDistributionAmount) || 0) > 0 && !data.insuranceInvestmentDistributionStartDate) {
+                    data = {
+                        ...data,
+                        insuranceInvestmentDistributionStartDate: data.insuranceStartDate || ''
+                    };
+                }
                 const newAssetId = editingId || Date.now().toString();
                 const shouldEnableFixedDepositMaturityRule = Boolean(
                     isFixedDepositForm
@@ -3425,6 +3700,33 @@
                             nextEntries = removeBySource(nextEntries, 'INSURANCE_DISTRIBUTION_AUTO');
                         }
 
+                        if (shouldEnableInsuranceInvestmentDistributionRule) {
+                            nextEntries = upsertBySource(nextEntries, 'INSURANCE_INVESTMENT_DISTRIBUTION_AUTO', (existingId) => buildInsuranceInvestmentDistributionCashflowEntry(editingId, data, existingId));
+                        } else if (wasAutoInsurance) {
+                            nextEntries = removeBySource(nextEntries, 'INSURANCE_INVESTMENT_DISTRIBUTION_AUTO');
+                        }
+
+                        if (shouldEnableFundDistributionRule) {
+                            nextEntries = upsertBySource(nextEntries, 'INVEST_FUND_DISTRIBUTION_AUTO', (existingId) => buildFundDistributionCashflowEntry(editingId, data, existingId));
+                        } else if (wasAutoFundDistribution) {
+                            nextEntries = removeBySource(nextEntries, 'INVEST_FUND_DISTRIBUTION_AUTO');
+                        }
+
+                        if (shouldSyncInsuranceFundRowDistributionRules) {
+                            const assetForRowDistribution = { ...data, id: editingId };
+                            const rebuiltRowDistributionEntries = buildInsuranceFundRowDistributionEntries(assetForRowDistribution, nextEntries);
+                            nextEntries = nextEntries.filter(entry => !(
+                                entry.linkedAssetId === editingId
+                                && String(entry.linkedSource || '').startsWith('INSURANCE_INVESTMENT_FUND_ROW_DISTRIBUTION_AUTO:')
+                            ));
+                            nextEntries = [...nextEntries, ...rebuiltRowDistributionEntries];
+                        } else if (wasAutoInsurance) {
+                            nextEntries = nextEntries.filter(entry => !(
+                                entry.linkedAssetId === editingId
+                                && String(entry.linkedSource || '').startsWith('INSURANCE_INVESTMENT_FUND_ROW_DISTRIBUTION_AUTO:')
+                            ));
+                        }
+
                         if (shouldEnableFixedDepositMaturityRule) {
                             nextEntries = upsertBySource(nextEntries, 'FIXED_DEPOSIT_MATURITY_AUTO', (existingId) => buildFixedDepositMaturityCashflowEntry(editingId, data, existingId));
                         } else if (wasAutoFixedDeposit) {
@@ -3461,6 +3763,16 @@
                         }
                         if (shouldEnableDistributionRule) {
                             nextEntries = [...nextEntries, buildInsuranceDistributionCashflowEntry(newAssetId, data)];
+                        }
+                        if (shouldEnableInsuranceInvestmentDistributionRule) {
+                            nextEntries = [...nextEntries, buildInsuranceInvestmentDistributionCashflowEntry(newAssetId, data)];
+                        }
+                        if (shouldEnableFundDistributionRule) {
+                            nextEntries = [...nextEntries, buildFundDistributionCashflowEntry(newAssetId, data)];
+                        }
+                        if (shouldSyncInsuranceFundRowDistributionRules) {
+                            const assetForRowDistribution = { ...data, id: newAssetId };
+                            nextEntries = [...nextEntries, ...buildInsuranceFundRowDistributionEntries(assetForRowDistribution, nextEntries)];
                         }
                         if (shouldEnableFixedDepositMaturityRule) {
                             nextEntries = [...nextEntries, buildFixedDepositMaturityCashflowEntry(newAssetId, data)];
